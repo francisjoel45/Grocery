@@ -2,7 +2,7 @@ services:
   - type: web
     name: grocery-management
     runtime: python
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate
+    buildCommand: python -m pip install --upgrade pip && python -m pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate
     startCommand: gunicorn grocery_management.wsgi:application
     healthCheckPath: /
     envVars:
