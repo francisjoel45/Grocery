@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: grocery-management
+    runtime: python
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate
+    startCommand: gunicorn grocery_management.wsgi:application
+    healthCheckPath: /
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com,localhost,127.0.0.1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: grocery-management-db
+          property: connectionString
+
+databases:
+  - name: grocery-management-db
+    plan: free

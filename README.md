@@ -65,6 +65,22 @@ A Django-based grocery inventory and sales management system for tracking produc
 
 Open `http://127.0.0.1:8000/` in your browser.
 
+## Deploying to Render
+
+This repository includes `render.yaml` for deploying the Django web service with a
+managed PostgreSQL database:
+
+1. Push the repository to GitHub.
+2. In Render, choose **New + > Blueprint**.
+3. Select the GitHub repository and deploy the blueprint.
+4. After deployment, create an admin user from the Render Shell:
+
+   ```bash
+   python manage.py createsuperuser
+   ```
+
+Render runs migrations and collects static files during each deployment.
+
 ## Main pages
 
 - `/dashboard/` - business overview
