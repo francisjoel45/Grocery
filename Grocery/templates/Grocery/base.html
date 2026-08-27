@@ -1,0 +1,211 @@
+<!-- templates/Grocery/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grocery Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --dark-green: #1a4d2e;
+            --light-gray: #f5f6fa;
+        }
+
+        body {
+            background-color: var(--light-gray);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .sidebar {
+            min-height: 100vh;
+            background-color: var(--dark-green);
+            color: white;
+            padding: 20px;
+        }
+
+        .sidebar .brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 12px 15px;
+            border-radius: 8px;
+            transition: all 0.3s;
+            margin-bottom: 5px;
+        }
+
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+
+        .sidebar .nav-link i {
+            margin-right: 10px;
+            width: 20px;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .login-main {
+            padding: 0;
+        }
+
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+        }
+
+        .card-stats {
+            padding: 20px;
+            border-left: 4px solid var(--dark-green);
+        }
+
+        .card-stats .icon {
+            font-size: 2rem;
+            color: var(--dark-green);
+        }
+
+        .btn-success {
+            background-color: var(--dark-green);
+            border-color: var(--dark-green);
+        }
+
+        .btn-success:hover {
+            background-color: #0f3b22;
+            border-color: #0f3b22;
+        }
+
+        .low-stock {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .alert-low-stock {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .table-hover tbody tr:hover {
+            background-color: rgba(26, 77, 46, 0.05);
+        }
+
+        .search-box {
+            max-width: 300px;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                min-height: auto;
+                padding: 10px;
+            }
+
+            .main-content {
+                padding: 15px;
+            }
+
+            .search-box {
+                max-width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            {% if user.is_authenticated %}
+            <nav class="col-md-2 d-md-block sidebar">
+                <div class="brand">
+                    <i class="bi bi-basket"></i> Grocery
+                    <button class="btn btn-outline-light d-md-none float-end" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false"
+                        aria-label="Toggle navigation">
+                        <i class="bi bi-list"></i>
+                    </button>
+                </div>
+                <ul class="nav flex-column collapse d-md-flex" id="sidebarMenu">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+                            href="{% url 'Grocery:dashboard' %}">
+                            <i class="bi bi-grid"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'product' in request.resolver_match.url_name %}active{% endif %}"
+                            href="{% url 'Grocery:product_list' %}">
+                            <i class="bi bi-box"></i> Products
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'sale' in request.resolver_match.url_name %}active{% endif %}"
+                            href="{% url 'Grocery:sales_list' %}">
+                            <i class="bi bi-cart"></i> Sales
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'transaction' in request.resolver_match.url_name %}active{% endif %}"
+                            href="{% url 'Grocery:transactions' %}">
+                            <i class="bi bi-wallet2"></i> Transactions
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}"
+                            href="{% url 'Grocery:reports' %}">
+                            <i class="bi bi-bar-chart"></i> Reports
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'settings' in request.resolver_match.url_name %}active{% endif %}"
+                            href="{% url 'Grocery:settings' %}">
+                            <i class="bi bi-gear"></i> Settings
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'Grocery:logout' %}">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+            <main
+                class="{% if user.is_authenticated %}col-md-10 ms-sm-auto{% else %}col-12{% endif %} main-content{% if not user.is_authenticated %} login-main{% endif %}">
+                {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

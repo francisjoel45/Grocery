@@ -1,0 +1,32 @@
+<!-- templates/Grocery/settings.html -->
+{% extends 'Grocery/base.html' %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-gear"></i> Settings</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-lock"></i> Change Password</h5>
+            </div>
+            <div class="card-body">
+                <p>Update your account password.</p>
+                <a href="{% url 'Grocery:change_password' %}" class="btn btn-success">Change Password</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> About</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Grocery Management System</strong></p>
+                <p class="text-muted">Version 1.0</p>
+                <p>Developed for small grocery shop owners to manage inventory and sales efficiently.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

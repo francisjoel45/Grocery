@@ -1,0 +1,6 @@
+asgiref==3.9.1
+Django==5.2.6
+django-crispy-forms==2.4
+crispy-bootstrap5==2025.6
+Pillow==11.3.0
+reportlab==5.0.1

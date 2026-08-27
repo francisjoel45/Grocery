@@ -1,0 +1,127 @@
+<!-- templates/Grocery/dashboard.html -->
+{% extends 'Grocery/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-grid"></i> Dashboard</h2>
+    </div>
+</div>
+
+{% if low_stock_alerts %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-low-stock">
+            <h5><i class="bi bi-exclamation-triangle"></i> Low Stock Alerts</h5>
+            {% for product in low_stock_alerts %}
+                <p class="mb-1"><strong>{{ product.name }}</strong> - Remaining quantity: {{ product.quantity }} kg (Minimum: {{ product.min_stock_level }} kg)</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-md-3 col-sm-6">
+        <div class="card card-stats">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-1">Total Products</h6>
+                    <h2 class="mb-0">{{ total_products }}</h2>
+                </div>
+                <i class="bi bi-box icon"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card card-stats">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-1">Total Stock (kg)</h6>
+                    <h2 class="mb-0">{{ total_stock_items }}</h2>
+                </div>
+                <i class="bi bi-boxes icon"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card card-stats">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-1">Products Low</h6>
+                    <h2 class="mb-0 text-danger">{{ low_stock_count }}</h2>
+                </div>
+                <i class="bi bi-exclamation-triangle icon text-danger"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card card-stats">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-1">Today's Sales</h6>
+                    <h2 class="mb-0">KSh {{ today_sales|floatformat:2 }}</h2>
+                </div>
+                <i class="bi bi-currency-exchange icon"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4 g-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Weekly Sales</h5>
+                <h3>KSh {{ weekly_sales|floatformat:2 }}</h3>
+                <p class="text-muted">Profit: KSh {{ weekly_profit|floatformat:2 }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Monthly Sales</h5>
+                <h3>KSh {{ monthly_sales|floatformat:2 }}</h3>
+                <p class="text-muted">Profit: KSh {{ monthly_profit|floatformat:2 }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Recent Low Stock Products</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Category</th>
+                                <th>Stock</th>
+                                <th>Min Level</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in low_stock_alerts|slice:":5" %}
+                            <tr>
+                                <td>{{ product.name }}</td>
+                                <td>{{ product.category.name|default:"-" }}</td>
+                                <td class="low-stock">{{ product.quantity }} kg</td>
+                                <td>{{ product.min_stock_level }}</td>
+                                <td><span class="badge bg-danger">Low Stock</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center">No low stock products</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

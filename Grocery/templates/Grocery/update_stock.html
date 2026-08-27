@@ -1,0 +1,29 @@
+<!-- templates/Grocery/update_stock.html -->
+{% extends 'Grocery/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0"><i class="bi bi-plus-slash-minus"></i> Update Stock - {{ product.name }}</h4>
+            </div>
+            <div class="card-body">
+                <p>Current Stock: <strong>{{ product.quantity }} kg</strong></p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">New Quantity (kg)</label>
+                        <input type="number" name="quantity" class="form-control" min="0" value="{{ product.quantity }}"
+                            required>
+                    </div>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'Grocery:product_list' %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-success">Update Stock</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

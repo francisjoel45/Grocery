@@ -1,0 +1,118 @@
+<!-- templates/Grocery/sales_list.html -->
+{% extends 'Grocery/base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-cart"></i> Sales Records</h2>
+    <div>
+        <a href="{% url 'Grocery:add_sale' %}" class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> New Sale
+        </a>
+        <a href="{% url 'Grocery:export_pdf' %}" class="btn btn-outline-danger" target="_blank">
+            <i class="bi bi-file-pdf"></i> PDF
+        </a>
+        <a href="{% url 'Grocery:export_excel' %}" class="btn btn-outline-success" target="_blank">
+            <i class="bi bi-file-excel"></i> Excel
+        </a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card card-stats">
+            <h6 class="text-muted">Today's Sales</h6>
+            <h3>KSh {{ daily_sales.total|floatformat:2|default:"0.00" }}</h3>
+            <small class="text-muted">{{ daily_sales.count|default:0 }} kg sold</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-stats">
+            <h6 class="text-muted">Weekly Sales</h6>
+            <h3>KSh {{ weekly_sales.total|floatformat:2|default:"0.00" }}</h3>
+            <small class="text-muted">Profit: KSh {{ weekly_sales.profit|floatformat:2|default:"0.00" }}</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-stats">
+            <h6 class="text-muted">Monthly Sales</h6>
+            <h3>KSh {{ monthly_sales.total|floatformat:2|default:"0.00" }}</h3>
+            <small class="text-muted">Profit: KSh {{ monthly_sales.profit|floatformat:2|default:"0.00" }}</small>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-3 mb-3">
+            <div class="col-md-4">
+                <input type="text" name="search" class="form-control" placeholder="Search product..." value="{{ request.GET.search }}">
+            </div>
+            <div class="col-md-3">
+                <input type="date" name="from_date" class="form-control" value="{{ request.GET.from_date }}">
+            </div>
+            <div class="col-md-3">
+                <input type="date" name="to_date" class="form-control" value="{{ request.GET.to_date }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-success w-100"><i class="bi bi-search"></i> Filter</button>
+            </div>
+            <input type="hidden" name="page_size" value="{{ page_size }}">
+        </form>
+        
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Product</th>
+                        <th>Quantity (kg)</th>
+                        <th>Unit Price</th>
+                        <th>Total</th>
+                        <th>Profit</th>
+                        <th>Payment</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sale in sales %}
+                    <tr>
+                        <td>{{ sale.date_sold|date:"Y-m-d H:i" }}</td>
+                        <td>{{ sale.product.name }}</td>
+                        <td>{{ sale.quantity }} kg</td>
+                        <td>KSh {{ sale.unit_price }}</td>
+                        <td>KSh {{ sale.total_amount }}</td>
+                        <td class="text-success">KSh {{ sale.profit }}</td>
+                        <td>{{ sale.payment_method }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center">No sales records found</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-3">
+            <small class="text-muted">Showing {{ sales.start_index }}-{{ sales.end_index }} of {{ sales.paginator.count }} sales</small>
+            <form method="get" class="d-flex align-items-center gap-2">
+                <input type="hidden" name="search" value="{{ request.GET.search }}">
+                <input type="hidden" name="from_date" value="{{ request.GET.from_date }}">
+                <input type="hidden" name="to_date" value="{{ request.GET.to_date }}">
+                <label for="sales-page-size" class="text-muted text-nowrap">Show</label>
+                <select id="sales-page-size" name="page_size" class="form-select form-select-sm" onchange="this.form.submit()">
+                    {% for option in page_size_options %}
+                    <option value="{{ option }}" {% if option == page_size %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+                <span class="text-muted">per page</span>
+            </form>
+            {% if sales.has_other_pages %}
+            <nav aria-label="Sales pages">
+                <ul class="pagination pagination-sm mb-0">
+                    {% if sales.has_previous %}<li class="page-item"><a class="page-link" href="?{{ pagination_query }}&page={{ sales.previous_page_number }}">Previous</a></li>{% endif %}
+                    <li class="page-item active"><span class="page-link">{{ sales.number }} / {{ sales.paginator.num_pages }}</span></li>
+                    {% if sales.has_next %}<li class="page-item"><a class="page-link" href="?{{ pagination_query }}&page={{ sales.next_page_number }}">Next</a></li>{% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

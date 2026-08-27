@@ -1,0 +1,39 @@
+{% extends 'Grocery/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<style>
+    .category-card {
+        max-width: 620px;
+        margin: 2rem auto;
+    }
+
+    .category-icon {
+        width: 52px;
+        height: 52px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 14px;
+        background: #e8f3ec;
+        color: #1a4d2e;
+        font-size: 24px;
+    }
+</style>
+
+<div class="card category-card">
+    <div class="card-body p-4 p-md-5">
+        <div class="d-flex align-items-center gap-3 mb-3">
+            <span class="category-icon"><i class="bi bi-tags"></i></span>
+            <div>
+                <h2 class="h4 mb-1">Create a category</h2>
+                <p class="text-muted mb-0">Organize products for faster stock management.</p>
+            </div>
+        </div>
+        {% crispy form %}
+        <a href="{% url 'Grocery:product_list' %}" class="btn btn-link text-success px-0 mt-2">
+            <i class="bi bi-arrow-left me-1"></i> Back to Products
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,99 @@
+<!-- templates/Grocery/product_list.html -->
+{% extends 'Grocery/base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-box"></i> Products</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'Grocery:add_category' %}" class="btn btn-outline-success">
+            <i class="bi bi-tags"></i> New Category
+        </a>
+        <a href="{% url 'Grocery:add_product' %}" class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> Add Product
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="d-flex gap-2 mb-3">
+            <input type="text" name="search" class="form-control search-box" placeholder="Search products..."
+                value="{{ request.GET.search }}">
+            <input type="hidden" name="page_size" value="{{ page_size }}">
+            <button type="submit" class="btn btn-outline-success"><i class="bi bi-search"></i></button>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Buying Price</th>
+                        <th>Selling Price</th>
+                        <th>Stock</th>
+                        <th>Min Level</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                    <tr>
+                        <td>{{ product.name }}</td>
+                        <td>{{ product.category.name|default:"-" }}</td>
+                        <td>KSh {{ product.buying_price }}</td>
+                        <td>KSh {{ product.selling_price }}</td>
+                        <td class="{% if product.is_low_stock %}low-stock{% endif %}">{{ product.quantity }} kg</td>
+                        <td>{{ product.min_stock_level }} kg</td>
+                        <td>
+                            {% if product.is_low_stock %}
+                            <span class="badge bg-danger">Low Stock</span>
+                            {% else %}
+                            <span class="badge bg-success">In Stock</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'Grocery:edit_product' product.pk %}" class="btn btn-outline-primary"><i
+                                        class="bi bi-pencil"></i></a>
+                                <a href="{% url 'Grocery:update_stock' product.pk %}" class="btn btn-outline-success"><i
+                                        class="bi bi-plus-slash-minus"></i></a>
+                                <a href="{% url 'Grocery:delete_product' product.pk %}"
+                                    class="btn btn-outline-danger"><i class="bi bi-trash"></i></a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center">No products found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-3">
+            <small class="text-muted">Showing {{ products.start_index }}-{{ products.end_index }} of {{ products.paginator.count }} products</small>
+            <form method="get" class="d-flex align-items-center gap-2">
+                <input type="hidden" name="search" value="{{ request.GET.search }}">
+                <label for="product-page-size" class="text-muted text-nowrap">Show</label>
+                <select id="product-page-size" name="page_size" class="form-select form-select-sm" onchange="this.form.submit()">
+                    {% for option in page_size_options %}
+                    <option value="{{ option }}" {% if option == page_size %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+                <span class="text-muted">per page</span>
+            </form>
+            {% if products.has_other_pages %}
+            <nav aria-label="Products pages">
+                <ul class="pagination pagination-sm mb-0">
+                    {% if products.has_previous %}<li class="page-item"><a class="page-link" href="?{{ pagination_query }}&page={{ products.previous_page_number }}">Previous</a></li>{% endif %}
+                    <li class="page-item active"><span class="page-link">{{ products.number }} / {{ products.paginator.num_pages }}</span></li>
+                    {% if products.has_next %}<li class="page-item"><a class="page-link" href="?{{ pagination_query }}&page={{ products.next_page_number }}">Next</a></li>{% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

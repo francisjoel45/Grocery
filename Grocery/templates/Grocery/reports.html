@@ -1,0 +1,255 @@
+<!-- templates/Grocery/reports.html -->
+{% extends 'Grocery/base.html' %}
+
+{% block content %}
+<style>
+    .report-hero {
+        background: linear-gradient(135deg, #153d27, #2d6b47);
+        border-radius: 18px;
+        color: white;
+        padding: 28px 30px;
+        margin-bottom: 24px;
+        box-shadow: 0 10px 30px rgba(26, 77, 46, 0.18);
+    }
+
+    .report-hero h2 {
+        font-weight: 700;
+        margin-bottom: 6px;
+    }
+
+    .report-hero p {
+        color: rgba(255, 255, 255, 0.78);
+        margin-bottom: 0;
+    }
+
+    .report-kpi {
+        border: 1px solid #e8edf0;
+        border-radius: 14px;
+        padding: 20px;
+        height: 100%;
+        background: white;
+    }
+
+    .report-kpi .kpi-icon {
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: #e8f3ec;
+        color: #1a4d2e;
+        font-size: 20px;
+        margin-bottom: 14px;
+    }
+
+    .report-kpi h3 {
+        color: #183b28;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .report-kpi small {
+        color: #718096;
+    }
+
+    .period-card {
+        overflow: hidden;
+    }
+
+    .period-heading {
+        padding: 20px 22px;
+        color: white;
+        background: linear-gradient(135deg, #1a4d2e, #3d8a5c);
+    }
+
+    .period-heading h5 {
+        margin: 0;
+        font-weight: 600;
+    }
+
+    .period-body {
+        padding: 22px;
+    }
+
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 11px 0;
+        border-bottom: 1px solid #eef1f2;
+    }
+
+    .metric-row:last-child {
+        border-bottom: 0;
+    }
+
+    .metric-label {
+        color: #718096;
+        font-size: 14px;
+    }
+
+    .metric-value {
+        color: #183b28;
+        font-weight: 700;
+    }
+
+    .ranking-title {
+        color: #183b28;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin: 24px 0 12px;
+    }
+
+    .ranking-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+    }
+
+    .ranking-number {
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: #f0f6f2;
+        color: #1a4d2e;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .ranking-name {
+        flex: 1;
+        color: #2d3748;
+        font-weight: 500;
+    }
+
+    .report-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 24px;
+    }
+
+    @media (max-width: 576px) {
+        .report-hero {
+            padding: 22px 20px;
+        }
+
+        .report-actions {
+            justify-content: stretch;
+        }
+
+        .report-actions .btn {
+            flex: 1;
+        }
+    }
+</style>
+
+<div class="report-hero d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+        <h2><i class="bi bi-bar-chart-line"></i> Business Reports</h2>
+        <p>Track revenue performance and your best-selling products.</p>
+    </div>
+    <span class="badge rounded-pill bg-light text-success px-3 py-2">
+        <i class="bi bi-clock me-1"></i> Live business summary
+    </span>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="report-kpi">
+            <span class="kpi-icon"><i class="bi bi-calendar-week"></i></span>
+            <small>Weekly revenue</small>
+            <h3>KSh {{ weekly_total|floatformat:2 }}</h3>
+            <small><i class="bi bi-graph-up-arrow text-success me-1"></i> Current week</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="report-kpi">
+            <span class="kpi-icon"><i class="bi bi-calendar-month"></i></span>
+            <small>Monthly revenue</small>
+            <h3>KSh {{ monthly_total|floatformat:2 }}</h3>
+            <small><i class="bi bi-graph-up-arrow text-success me-1"></i> Current month</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="report-kpi">
+            <span class="kpi-icon"><i class="bi bi-piggy-bank"></i></span>
+            <small>Monthly profit</small>
+            <h3>KSh {{ monthly_profit|floatformat:2 }}</h3>
+            <small><i class="bi bi-shield-check text-success me-1"></i> Gross profit</small>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card period-card h-100">
+            <div class="period-heading d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-calendar-week me-2"></i> Weekly performance</h5>
+                <a href="{% url 'Grocery:export_weekly_excel' %}" class="btn btn-sm btn-light text-success">
+                    <i class="bi bi-filetype-csv me-1"></i> Download CSV for Excel
+                </a>
+            </div>
+            <div class="period-body">
+                <div class="metric-row">
+                    <span class="metric-label">Total sales</span>
+                    <span class="metric-value">KSh {{ weekly_total|floatformat:2 }}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Profit generated</span>
+                    <span class="metric-value text-success">KSh {{ weekly_profit|floatformat:2 }}</span>
+                </div>
+                <div class="ranking-title">Top products by volume</div>
+                {% for item in weekly_best %}
+                <div class="ranking-item">
+                    <span class="ranking-number">{{ forloop.counter }}</span>
+                    <span class="ranking-name">{{ item.product__name }}</span>
+                    <span class="badge bg-success-subtle text-success">{{ item.total }} kg</span>
+                </div>
+                {% empty %}
+                <p class="text-muted mb-0">No sales recorded this week.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card period-card h-100">
+            <div class="period-heading d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-calendar-month me-2"></i> Monthly performance</h5>
+                <a href="{% url 'Grocery:export_monthly_excel' %}" class="btn btn-sm btn-light text-success">
+                    <i class="bi bi-filetype-csv me-1"></i> Download CSV for Excel
+                </a>
+            </div>
+            <div class="period-body">
+                <div class="metric-row">
+                    <span class="metric-label">Total sales</span>
+                    <span class="metric-value">KSh {{ monthly_total|floatformat:2 }}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Profit generated</span>
+                    <span class="metric-value text-success">KSh {{ monthly_profit|floatformat:2 }}</span>
+                </div>
+                <div class="ranking-title">Top products by volume</div>
+                {% for item in monthly_best %}
+                <div class="ranking-item">
+                    <span class="ranking-number">{{ forloop.counter }}</span>
+                    <span class="ranking-name">{{ item.product__name }}</span>
+                    <span class="badge bg-success-subtle text-success">{{ item.total }} kg</span>
+                </div>
+                {% empty %}
+                <p class="text-muted mb-0">No sales recorded this month.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
