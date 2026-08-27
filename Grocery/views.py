@@ -13,7 +13,13 @@ from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.views.decorators.cache import never_cache
 from django.core.paginator import Paginator
 from .models import Product, Category, Sale
-from .forms import ProductForm, CategoryForm, SaleForm, CustomPasswordChangeForm
+from .forms import (
+    ProductForm,
+    CategoryForm,
+    SaleForm,
+    CustomPasswordChangeForm,
+    RegistrationForm,
+)
 import csv
 from django.http import HttpResponse
 from reportlab.pdfgen import canvas
@@ -65,6 +71,23 @@ def login_view(request):
         else:
             messages.error(request, 'Invalid username or password.')
     return render(request, 'Grocery/login.html')
+
+
+@csrf_protect
+@never_cache
+def register_view(request):
+    if request.user.is_authenticated:
+        return redirect('Grocery:dashboard')
+
+    form = RegistrationForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        user = form.save()
+        login(request, user)
+        messages.success(request, f'Welcome to Grocery Management, {user.username}!')
+        return redirect('Grocery:dashboard')
+
+    return render(request, 'Grocery/register.html', {'form': form})
+
 
 def logout_view(request):
     logout(request)

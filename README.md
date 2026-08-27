@@ -14,6 +14,7 @@ A Django-based grocery inventory and sales management system for tracking produc
 - Nairobi, Kenya timezone support
 - Responsive desktop and mobile interface
 - Collapsible mobile navigation
+- Modern login and self-service registration
 - User authentication and password management
 
 ## Requirements
@@ -83,6 +84,8 @@ Render runs migrations and collects static files during each deployment.
 
 ## Main pages
 
+- `/` - secure login
+- `/register/` - create a store team account
 - `/dashboard/` - business overview
 - `/products/` - products and categories
 - `/sales/` - sales records
