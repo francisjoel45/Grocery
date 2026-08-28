@@ -83,7 +83,7 @@ def register_view(request):
     if request.method == 'POST' and form.is_valid():
         user = form.save()
         login(request, user)
-        messages.success(request, f'Welcome to Grocery Management, {user.username}!')
+        messages.success(request, f'Welcome to Cereal Heaven, {user.username}!')
         return redirect('Grocery:dashboard')
 
     return render(request, 'Grocery/register.html', {'form': form})
