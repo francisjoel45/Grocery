@@ -1,4 +1,6 @@
 # Grocery/views.py (updated with CSRF protection)
+import os
+import secrets
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -10,6 +12,7 @@ from django.db.models import Sum, Count, Q, F
 from django.utils import timezone
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from django.http import Http404
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.views.decorators.cache import never_cache
 from django.core.paginator import Paginator
@@ -84,6 +87,35 @@ def login_view(request):
 
 def logout_view(request):
     logout(request)
+    return redirect('Grocery:login')
+
+
+@never_cache
+def bootstrap_admin(request, token):
+    """One-time, token-protected creation of the first superuser (for shell-less hosts)."""
+    expected = os.environ.get('ADMIN_SETUP_TOKEN')
+    if not expected or not secrets.compare_digest(str(token), str(expected)):
+        raise Http404
+
+    if User.objects.filter(is_superuser=True).exists():
+        messages.info(request, 'An administrator already exists. This setup link is now disabled.')
+        return redirect('Grocery:login')
+
+    username = os.environ.get('DJANGO_SUPERUSER_USERNAME')
+    password = os.environ.get('DJANGO_SUPERUSER_PASSWORD')
+    email = os.environ.get('DJANGO_SUPERUSER_EMAIL', '')
+    if not username or not password:
+        messages.error(
+            request,
+            'Set DJANGO_SUPERUSER_USERNAME and DJANGO_SUPERUSER_PASSWORD in the environment first.'
+        )
+        return redirect('Grocery:login')
+
+    User.objects.create_superuser(username=username, email=email, password=password)
+    messages.success(
+        request,
+        f'Administrator "{username}" created. Log in, then remove the ADMIN_SETUP_TOKEN variable.'
+    )
     return redirect('Grocery:login')
 
 @login_required

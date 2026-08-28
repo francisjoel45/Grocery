@@ -8,6 +8,7 @@ urlpatterns = [
     # Authentication
     path('', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('setup/<str:token>/', views.bootstrap_admin, name='bootstrap_admin'),
     
     # Dashboard
     path('dashboard/', views.dashboard, name='dashboard'),
