@@ -1,8 +1,9 @@
 # Grocery/views.py (updated with CSRF protection)
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.models import User
 from django.contrib.auth import update_session_auth_hash
 from django.contrib import messages
 from django.db.models import Sum, Count, Q, F
@@ -18,8 +19,16 @@ from .forms import (
     CategoryForm,
     SaleForm,
     CustomPasswordChangeForm,
-    RegistrationForm,
+    AdminUserCreationForm,
+    AdminUserEditForm,
 )
+
+
+def is_admin(user):
+    return user.is_authenticated and (user.is_staff or user.is_superuser)
+
+
+admin_required = user_passes_test(is_admin, login_url='Grocery:dashboard')
 import csv
 from django.http import HttpResponse
 from reportlab.pdfgen import canvas
@@ -73,22 +82,6 @@ def login_view(request):
     return render(request, 'Grocery/login.html')
 
 
-@csrf_protect
-@never_cache
-def register_view(request):
-    if request.user.is_authenticated:
-        return redirect('Grocery:dashboard')
-
-    form = RegistrationForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        user = form.save()
-        login(request, user)
-        messages.success(request, f'Welcome to Cereal Heaven, {user.username}!')
-        return redirect('Grocery:dashboard')
-
-    return render(request, 'Grocery/register.html', {'form': form})
-
-
 def logout_view(request):
     logout(request)
     return redirect('Grocery:login')
@@ -117,7 +110,32 @@ def dashboard(request):
         profit=Sum('profit'))
     
     low_stock_alerts = products.filter(quantity__lte=F('min_stock_level'))
-    
+
+    # 7-day sales trend (oldest -> newest)
+    trend_start = today - timedelta(days=6)
+    daily_totals = {
+        row['date_sold__date']: row['total'] or 0
+        for row in Sale.objects.filter(date_sold__date__gte=trend_start)
+        .values('date_sold__date')
+        .annotate(total=Sum('total_amount'))
+    }
+    sales_trend_labels = []
+    sales_trend_data = []
+    for offset in range(7):
+        day = trend_start + timedelta(days=offset)
+        sales_trend_labels.append(day.strftime('%a %d'))
+        sales_trend_data.append(float(daily_totals.get(day, 0)))
+
+    # Top products this month by revenue
+    top_products = (
+        Sale.objects.filter(date_sold__date__gte=month_start)
+        .values('product__name')
+        .annotate(total=Sum('total_amount'))
+        .order_by('-total')[:5]
+    )
+    top_products_labels = [item['product__name'] for item in top_products]
+    top_products_data = [float(item['total'] or 0) for item in top_products]
+
     context = {
         'total_products': total_products,
         'total_stock_items': total_stock_items,
@@ -128,6 +146,10 @@ def dashboard(request):
         'weekly_profit': week_profit.get('profit') or 0,
         'monthly_profit': month_profit.get('profit') or 0,
         'low_stock_alerts': low_stock_alerts,
+        'sales_trend_labels': sales_trend_labels,
+        'sales_trend_data': sales_trend_data,
+        'top_products_labels': top_products_labels,
+        'top_products_data': top_products_data,
     }
     return render(request, 'Grocery/dashboard.html', context)
 
@@ -349,6 +371,82 @@ def change_password(request):
     else:
         form = CustomPasswordChangeForm(request.user)
     return render(request, 'Grocery/change_password.html', {'form': form})
+
+
+@login_required
+@admin_required
+def user_list(request):
+    users = User.objects.all().order_by('username')
+    search_query = request.GET.get('search')
+    if search_query:
+        users = users.filter(
+            Q(username__icontains=search_query) |
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(email__icontains=search_query)
+        )
+    users_page, page_size, pagination_query = paginate_queryset(request, users)
+    return render(request, 'Grocery/user_list.html', {
+        'users': users_page,
+        'page_size': page_size,
+        'page_size_options': PAGE_SIZE_OPTIONS,
+        'pagination_query': pagination_query,
+        'total_users': User.objects.count(),
+        'admin_count': User.objects.filter(Q(is_staff=True) | Q(is_superuser=True)).count(),
+    })
+
+
+@login_required
+@admin_required
+def add_user(request):
+    if request.method == 'POST':
+        form = AdminUserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            messages.success(request, f'User "{user.username}" created successfully!')
+            return redirect('Grocery:user_list')
+    else:
+        form = AdminUserCreationForm()
+    return render(request, 'Grocery/user_form.html', {'form': form, 'title': 'Add User'})
+
+
+@login_required
+@admin_required
+def edit_user(request, pk):
+    user_obj = get_object_or_404(User, pk=pk)
+    if request.method == 'POST':
+        form = AdminUserEditForm(request.POST, instance=user_obj)
+        if form.is_valid():
+            if user_obj == request.user and not form.cleaned_data.get('is_staff'):
+                messages.error(request, 'You cannot remove your own administrator access.')
+            elif user_obj == request.user and not form.cleaned_data.get('is_active'):
+                messages.error(request, 'You cannot deactivate your own account.')
+            else:
+                form.save()
+                messages.success(request, f'User "{user_obj.username}" updated successfully!')
+                return redirect('Grocery:user_list')
+    else:
+        form = AdminUserEditForm(instance=user_obj)
+    return render(request, 'Grocery/user_form.html', {
+        'form': form,
+        'title': 'Edit User',
+        'user_obj': user_obj,
+    })
+
+
+@login_required
+@admin_required
+def delete_user(request, pk):
+    user_obj = get_object_or_404(User, pk=pk)
+    if user_obj == request.user:
+        messages.error(request, 'You cannot delete your own account.')
+        return redirect('Grocery:user_list')
+    if request.method == 'POST':
+        username = user_obj.username
+        user_obj.delete()
+        messages.success(request, f'User "{username}" deleted successfully!')
+        return redirect('Grocery:user_list')
+    return render(request, 'Grocery/user_confirm_delete.html', {'user_obj': user_obj})
 
 @login_required
 def export_sales_pdf(request):

@@ -7,7 +7,6 @@ app_name = 'Grocery'
 urlpatterns = [
     # Authentication
     path('', views.login_view, name='login'),
-    path('register/', views.register_view, name='register'),
     path('logout/', views.logout_view, name='logout'),
     
     # Dashboard
@@ -38,4 +37,10 @@ urlpatterns = [
     # Settings
     path('settings/', views.settings_view, name='settings'),
     path('settings/change-password/', views.change_password, name='change_password'),
+
+    # User management (admin only)
+    path('users/', views.user_list, name='user_list'),
+    path('users/add/', views.add_user, name='add_user'),
+    path('users/edit/<int:pk>/', views.edit_user, name='edit_user'),
+    path('users/delete/<int:pk>/', views.delete_user, name='delete_user'),
 ]

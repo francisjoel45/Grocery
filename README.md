@@ -85,12 +85,12 @@ Render runs migrations and collects static files during each deployment.
 ## Main pages
 
 - `/` - secure login
-- `/register/` - create a store team account
 - `/dashboard/` - business overview
 - `/products/` - products and categories
 - `/sales/` - sales records
 - `/transactions/` - Cash and M-Pesa transaction totals
 - `/reports/` - weekly/monthly reporting and CSV exports
+- `/users/` - user management (administrators only)
 - `/admin/` - Django administration
 
 ## Currency and timezone

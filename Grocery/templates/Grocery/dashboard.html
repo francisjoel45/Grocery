@@ -1,101 +1,142 @@
 <!-- templates/Grocery/dashboard.html -->
 {% extends 'Grocery/base.html' %}
 
+{% block page_title %}Dashboard{% endblock %}
+
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h2 class="mb-4"><i class="bi bi-grid"></i> Dashboard</h2>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h2 class="mb-1"><i class="bi bi-grid"></i> Dashboard</h2>
+        <p class="text-muted mb-0">Business overview at a glance</p>
     </div>
+    <a href="{% url 'Grocery:add_sale' %}" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i> Record Sale
+    </a>
 </div>
 
 {% if low_stock_alerts %}
-<div class="row">
-    <div class="col-12">
-        <div class="alert alert-low-stock">
-            <h5><i class="bi bi-exclamation-triangle"></i> Low Stock Alerts</h5>
-            {% for product in low_stock_alerts %}
-                <p class="mb-1"><strong>{{ product.name }}</strong> - Remaining quantity: {{ product.quantity }} kg (Minimum: {{ product.min_stock_level }} kg)</p>
-            {% endfor %}
-        </div>
+<div class="alert alert-low-stock d-flex align-items-start gap-2">
+    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+    <div>
+        <strong>Low Stock Alerts</strong>
+        {% for product in low_stock_alerts %}
+        <div class="small">{{ product.name }} — {{ product.quantity }} kg left (min {{ product.min_stock_level }} kg)</div>
+        {% endfor %}
     </div>
 </div>
 {% endif %}
 
-<div class="row g-4">
-    <div class="col-md-3 col-sm-6">
-        <div class="card card-stats">
-            <div class="d-flex justify-content-between align-items-center">
+<div class="row g-3 g-lg-4">
+    <div class="col-6 col-lg-3">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <h6 class="text-muted mb-1">Total Products</h6>
-                    <h2 class="mb-0">{{ total_products }}</h2>
+                    <div class="stat-label">Total Products</div>
+                    <p class="stat-value">{{ total_products }}</p>
                 </div>
-                <i class="bi bi-box icon"></i>
+                <div class="stat-icon green"><i class="bi bi-box-seam"></i></div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="card card-stats">
-            <div class="d-flex justify-content-between align-items-center">
+    <div class="col-6 col-lg-3">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <h6 class="text-muted mb-1">Total Stock (kg)</h6>
-                    <h2 class="mb-0">{{ total_stock_items }}</h2>
+                    <div class="stat-label">Total Stock</div>
+                    <p class="stat-value">{{ total_stock_items|floatformat:0 }} <small class="fs-6 text-muted">kg</small></p>
                 </div>
-                <i class="bi bi-boxes icon"></i>
+                <div class="stat-icon blue"><i class="bi bi-boxes"></i></div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="card card-stats">
-            <div class="d-flex justify-content-between align-items-center">
+    <div class="col-6 col-lg-3">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <h6 class="text-muted mb-1">Products Low</h6>
-                    <h2 class="mb-0 text-danger">{{ low_stock_count }}</h2>
+                    <div class="stat-label">Low Stock</div>
+                    <p class="stat-value {% if low_stock_count %}text-danger{% endif %}">{{ low_stock_count }}</p>
                 </div>
-                <i class="bi bi-exclamation-triangle icon text-danger"></i>
+                <div class="stat-icon {% if low_stock_count %}red{% else %}green{% endif %}"><i class="bi bi-exclamation-triangle"></i></div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="card card-stats">
-            <div class="d-flex justify-content-between align-items-center">
+    <div class="col-6 col-lg-3">
+        <div class="stat-card h-100">
+            <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <h6 class="text-muted mb-1">Today's Sales</h6>
-                    <h2 class="mb-0">KSh {{ today_sales|floatformat:2 }}</h2>
+                    <div class="stat-label">Today's Sales</div>
+                    <p class="stat-value">KSh {{ today_sales|floatformat:2 }}</p>
                 </div>
-                <i class="bi bi-currency-exchange icon"></i>
+                <div class="stat-icon amber"><i class="bi bi-cash-coin"></i></div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row mt-4 g-4">
-    <div class="col-md-6">
-        <div class="card">
+<div class="row g-3 g-lg-4 mt-1">
+    <div class="col-lg-8">
+        <div class="card h-100">
             <div class="card-body">
-                <h5 class="card-title">Weekly Sales</h5>
-                <h3>KSh {{ weekly_sales|floatformat:2 }}</h3>
-                <p class="text-muted">Profit: KSh {{ weekly_profit|floatformat:2 }}</p>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0">Sales — Last 7 Days</h5>
+                    <span class="badge bg-success-subtle text-success">KSh</span>
+                </div>
+                <div style="position:relative;height:260px;">
+                    <canvas id="salesTrendChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="card">
+    <div class="col-lg-4">
+        <div class="card h-100">
             <div class="card-body">
-                <h5 class="card-title">Monthly Sales</h5>
-                <h3>KSh {{ monthly_sales|floatformat:2 }}</h3>
-                <p class="text-muted">Profit: KSh {{ monthly_profit|floatformat:2 }}</p>
+                <h5 class="card-title mb-3">Top Products (This Month)</h5>
+                {% if top_products_labels %}
+                <div style="position:relative;height:260px;">
+                    <canvas id="topProductsChart"></canvas>
+                </div>
+                {% else %}
+                <p class="text-muted text-center my-5">No sales recorded yet this month.</p>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<div class="row mt-4">
+<div class="row g-3 g-lg-4 mt-1">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="text-muted mb-1">Weekly Sales</h6>
+                    <div class="stat-icon purple" style="width:42px;height:42px;font-size:1.2rem;"><i class="bi bi-graph-up-arrow"></i></div>
+                </div>
+                <h3 class="mb-1">KSh {{ weekly_sales|floatformat:2 }}</h3>
+                <p class="text-muted mb-0"><i class="bi bi-arrow-up-right text-success"></i> Profit: KSh {{ weekly_profit|floatformat:2 }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="text-muted mb-1">Monthly Sales</h6>
+                    <div class="stat-icon green" style="width:42px;height:42px;font-size:1.2rem;"><i class="bi bi-calendar3"></i></div>
+                </div>
+                <h3 class="mb-1">KSh {{ monthly_sales|floatformat:2 }}</h3>
+                <p class="text-muted mb-0"><i class="bi bi-arrow-up-right text-success"></i> Profit: KSh {{ monthly_profit|floatformat:2 }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-1 g-4">
     <div class="col-12">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Recent Low Stock Products</h5>
+                <h5 class="card-title mb-3">Low Stock Products</h5>
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover align-middle">
                         <thead>
                             <tr>
                                 <th>Product</th>
@@ -108,14 +149,14 @@
                         <tbody>
                             {% for product in low_stock_alerts|slice:":5" %}
                             <tr>
-                                <td>{{ product.name }}</td>
+                                <td class="fw-semibold">{{ product.name }}</td>
                                 <td>{{ product.category.name|default:"-" }}</td>
                                 <td class="low-stock">{{ product.quantity }} kg</td>
-                                <td>{{ product.min_stock_level }}</td>
+                                <td>{{ product.min_stock_level }} kg</td>
                                 <td><span class="badge bg-danger">Low Stock</span></td>
                             </tr>
                             {% empty %}
-                            <tr><td colspan="5" class="text-center">No low stock products</td></tr>
+                            <tr><td colspan="5" class="text-center text-muted py-4"><i class="bi bi-check-circle text-success"></i> All products are well stocked</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -124,4 +165,74 @@
         </div>
     </div>
 </div>
+
+{{ sales_trend_labels|json_script:"salesTrendLabels" }}
+{{ sales_trend_data|json_script:"salesTrendData" }}
+{{ top_products_labels|json_script:"topProductsLabels" }}
+{{ top_products_data|json_script:"topProductsData" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+    (function () {
+        const readJSON = (id) => JSON.parse(document.getElementById(id).textContent);
+        const brand = '#1a4d2e';
+
+        const trendCtx = document.getElementById('salesTrendChart');
+        if (trendCtx) {
+            const gradient = trendCtx.getContext('2d').createLinearGradient(0, 0, 0, 240);
+            gradient.addColorStop(0, 'rgba(26, 77, 46, 0.28)');
+            gradient.addColorStop(1, 'rgba(26, 77, 46, 0.0)');
+            new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: readJSON('salesTrendLabels'),
+                    datasets: [{
+                        label: 'Sales (KSh)',
+                        data: readJSON('salesTrendData'),
+                        borderColor: brand,
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 4,
+                        pointBackgroundColor: brand,
+                        borderWidth: 3,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#eef1ef' }, ticks: { callback: (v) => 'KSh ' + v.toLocaleString() } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        const topCtx = document.getElementById('topProductsChart');
+        if (topCtx) {
+            new Chart(topCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: readJSON('topProductsLabels'),
+                    datasets: [{
+                        data: readJSON('topProductsData'),
+                        backgroundColor: ['#1a4d2e', '#3d8a5c', '#6fbf8b', '#a7d9ba', '#d9efe1'],
+                        borderWidth: 2,
+                        borderColor: '#fff',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '62%',
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } }
+                }
+            });
+        }
+    })();
+</script>
 {% endblock %}

@@ -4,27 +4,42 @@
 {% block content %}
 <h2 class="mb-4"><i class="bi bi-gear"></i> Settings</h2>
 
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
+<div class="row g-4">
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0"><i class="bi bi-lock"></i> Change Password</h5>
             </div>
-            <div class="card-body">
-                <p>Update your account password.</p>
+            <div class="card-body d-flex flex-column">
+                <p class="flex-grow-1">Update your account password to keep it secure.</p>
                 <a href="{% url 'Grocery:change_password' %}" class="btn btn-success">Change Password</a>
             </div>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="card">
+
+    {% if user.is_staff or user.is_superuser %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-people"></i> User Management</h5>
+            </div>
+            <div class="card-body d-flex flex-column">
+                <p class="flex-grow-1">Add, edit, or remove staff and administrator accounts.</p>
+                <a href="{% url 'Grocery:user_list' %}" class="btn btn-success">Manage Users</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0"><i class="bi bi-info-circle"></i> About</h5>
             </div>
             <div class="card-body">
                 <p><strong>Cereal Heaven System</strong></p>
-                <p class="text-muted">Version 1.0</p>
-                <p>Developed for small grocery shop owners to manage inventory and sales efficiently.</p>
+                <p class="text-muted mb-1">Version 1.0</p>
+                <p class="mb-0">Developed for small grocery shop owners to manage inventory and sales efficiently.</p>
             </div>
         </div>
     </div>

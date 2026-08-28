@@ -115,19 +115,32 @@ class CustomPasswordChangeForm(PasswordChangeForm):
         )
 
 
-class RegistrationForm(UserCreationForm):
+class AdminUserCreationForm(UserCreationForm):
     email = forms.EmailField(
-        required=True,
+        required=False,
         widget=forms.EmailInput(attrs={
             'class': 'form-control',
             'placeholder': 'you@example.com',
             'autocomplete': 'email',
         }),
     )
+    first_name = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'First name'}),
+    )
+    last_name = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Last name'}),
+    )
+    is_staff = forms.BooleanField(
+        required=False,
+        label='Administrator access',
+        help_text='Administrators can manage users and access every feature.',
+    )
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password1', 'password2']
+        fields = ['username', 'first_name', 'last_name', 'email', 'is_staff', 'password1', 'password2']
         widgets = {
             'username': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -136,8 +149,67 @@ class RegistrationForm(UserCreationForm):
             }),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_tag = False
+        self.helper.layout = Layout(
+            Row(
+                Column('first_name', css_class='col-md-6'),
+                Column('last_name', css_class='col-md-6'),
+            ),
+            Row(
+                Column('username', css_class='col-md-6'),
+                Column('email', css_class='col-md-6'),
+            ),
+            Row(
+                Column('password1', css_class='col-md-6'),
+                Column('password2', css_class='col-md-6'),
+            ),
+            Field('is_staff'),
+        )
+
     def clean_email(self):
-        email = self.cleaned_data['email'].strip().lower()
-        if User.objects.filter(email__iexact=email).exists():
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if email and User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('An account with this email already exists.')
+        return email
+
+
+class AdminUserEditForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['username', 'first_name', 'last_name', 'email', 'is_staff', 'is_active']
+        labels = {
+            'is_staff': 'Administrator access',
+            'is_active': 'Account active',
+        }
+        widgets = {
+            'username': forms.TextInput(attrs={'class': 'form-control'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_tag = False
+        self.helper.layout = Layout(
+            Row(
+                Column('first_name', css_class='col-md-6'),
+                Column('last_name', css_class='col-md-6'),
+            ),
+            Row(
+                Column('username', css_class='col-md-6'),
+                Column('email', css_class='col-md-6'),
+            ),
+            Field('is_staff'),
+            Field('is_active'),
+        )
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if email and User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
             raise forms.ValidationError('An account with this email already exists.')
         return email

@@ -94,6 +94,14 @@ if DATABASE_URL:
     import dj_database_url
     DATABASES = {'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)}
 else:
+    if not DEBUG:
+        import warnings
+        warnings.warn(
+            'DATABASE_URL is not set while DEBUG is False. Falling back to SQLite, '
+            'which is stored on an ephemeral filesystem and WILL BE ERASED on every '
+            'deployment/restart. Provision a PostgreSQL database and set DATABASE_URL.',
+            RuntimeWarning,
+        )
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',

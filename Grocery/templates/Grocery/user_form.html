@@ -1,0 +1,24 @@
+{% extends 'Grocery/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0"><i class="bi bi-person-gear"></i> {{ title }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    {% crispy form %}
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-success"><i class="bi bi-check-lg"></i> Save User</button>
+                        <a href="{% url 'Grocery:user_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
