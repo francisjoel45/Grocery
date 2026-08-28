@@ -2,14 +2,23 @@
 {% extends 'Grocery/base.html' %}
 {% load crispy_forms_tags %}
 
+{% block page_title %}{{ title }}{% endblock %}
+
 {% block content %}
+<div class="page-header">
+    <div>
+        <h1><i class="bi bi-box-seam text-success"></i> {{ title }}</h1>
+        <p class="page-sub">Add or update a product record.</p>
+    </div>
+    <div class="page-actions">
+        <a href="{% url 'Grocery:product_list' %}" class="btn btn-outline-success"><i class="bi bi-arrow-left"></i> Back to Products</a>
+    </div>
+</div>
+
 <div class="row justify-content-center">
-    <div class="col-md-8">
+    <div class="col-lg-8">
         <div class="card">
-            <div class="card-header bg-success text-white">
-                <h4 class="mb-0"><i class="bi bi-plus-circle"></i> {{ title }}</h4>
-            </div>
-            <div class="card-body">
+            <div class="card-body p-4 p-md-4">
                 {% crispy form %}
             </div>
         </div>

@@ -1,10 +1,15 @@
 <!-- templates/Grocery/sales_list.html -->
 {% extends 'Grocery/base.html' %}
 
+{% block page_title %}Sales{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-cart"></i> Sales Records</h2>
+<div class="page-header">
     <div>
+        <h1><i class="bi bi-cart3 text-success"></i> Sales Records</h1>
+        <p class="page-sub">Track every sale, export data, and monitor performance.</p>
+    </div>
+    <div class="page-actions">
         <a href="{% url 'Grocery:add_sale' %}" class="btn btn-success">
             <i class="bi bi-plus-circle"></i> New Sale
         </a>
@@ -19,31 +24,40 @@
 
 <div class="row g-3 mb-4">
     <div class="col-md-4">
-        <div class="card card-stats">
-            <h6 class="text-muted">Today's Sales</h6>
-            <h3>KSh {{ daily_sales.total|floatformat:2|default:"0.00" }}</h3>
-            <small class="text-muted">{{ daily_sales.count|default:0 }} kg sold</small>
+        <div class="stat-card d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">Today's Sales</div>
+                <p class="stat-value">KSh {{ daily_sales.total|floatformat:2|default:"0.00" }}</p>
+                <div class="stat-hint">{{ daily_sales.count|default:0 }} kg sold</div>
+            </div>
+            <div class="stat-icon amber"><i class="bi bi-sun"></i></div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card card-stats">
-            <h6 class="text-muted">Weekly Sales</h6>
-            <h3>KSh {{ weekly_sales.total|floatformat:2|default:"0.00" }}</h3>
-            <small class="text-muted">Profit: KSh {{ weekly_sales.profit|floatformat:2|default:"0.00" }}</small>
+        <div class="stat-card d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">Weekly Sales</div>
+                <p class="stat-value">KSh {{ weekly_sales.total|floatformat:2|default:"0.00" }}</p>
+                <div class="stat-hint">Profit KSh {{ weekly_sales.profit|floatformat:2|default:"0.00" }}</div>
+            </div>
+            <div class="stat-icon blue"><i class="bi bi-calendar-week"></i></div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card card-stats">
-            <h6 class="text-muted">Monthly Sales</h6>
-            <h3>KSh {{ monthly_sales.total|floatformat:2|default:"0.00" }}</h3>
-            <small class="text-muted">Profit: KSh {{ monthly_sales.profit|floatformat:2|default:"0.00" }}</small>
+        <div class="stat-card d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">Monthly Sales</div>
+                <p class="stat-value">KSh {{ monthly_sales.total|floatformat:2|default:"0.00" }}</p>
+                <div class="stat-hint">Profit KSh {{ monthly_sales.profit|floatformat:2|default:"0.00" }}</div>
+            </div>
+            <div class="stat-icon green"><i class="bi bi-calendar-month"></i></div>
         </div>
     </div>
 </div>
 
 <div class="card">
     <div class="card-body">
-        <form method="get" class="row g-3 mb-3">
+        <form method="get" class="row g-2 mb-3">
             <div class="col-md-4">
                 <input type="text" name="search" class="form-control" placeholder="Search product..." value="{{ request.GET.search }}">
             </div>
@@ -54,18 +68,18 @@
                 <input type="date" name="to_date" class="form-control" value="{{ request.GET.to_date }}">
             </div>
             <div class="col-md-2">
-                <button type="submit" class="btn btn-success w-100"><i class="bi bi-search"></i> Filter</button>
+                <button type="submit" class="btn btn-success w-100"><i class="bi bi-funnel"></i> Filter</button>
             </div>
             <input type="hidden" name="page_size" value="{{ page_size }}">
         </form>
-        
+
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="table table-hover align-middle">
                 <thead>
                     <tr>
                         <th>Date</th>
                         <th>Product</th>
-                        <th>Quantity (kg)</th>
+                        <th>Qty (kg)</th>
                         <th>Unit Price</th>
                         <th>Total</th>
                         <th>Profit</th>
@@ -76,15 +90,15 @@
                     {% for sale in sales %}
                     <tr>
                         <td>{{ sale.date_sold|date:"Y-m-d H:i" }}</td>
-                        <td>{{ sale.product.name }}</td>
-                        <td>{{ sale.quantity }} kg</td>
+                        <td class="fw-semibold">{{ sale.product.name }}</td>
+                        <td>{{ sale.quantity }}</td>
                         <td>KSh {{ sale.unit_price }}</td>
-                        <td>KSh {{ sale.total_amount }}</td>
-                        <td class="text-success">KSh {{ sale.profit }}</td>
-                        <td>{{ sale.payment_method }}</td>
+                        <td class="fw-semibold">KSh {{ sale.total_amount }}</td>
+                        <td class="text-success fw-semibold">KSh {{ sale.profit }}</td>
+                        <td><span class="badge {% if sale.payment_method == 'Cash' %}bg-success-subtle text-success{% else %}bg-info-subtle text-info{% endif %}">{{ sale.payment_method }}</span></td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="7" class="text-center">No sales records found</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No sales records found</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

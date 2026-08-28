@@ -1,62 +1,55 @@
-<!-- templates/Grocery/_sidebar.html -->
-<div class="brand">
-    <i class="bi bi-basket"></i>
+<div class="sidebar-brand">
+    <span class="brand-badge"><i class="bi bi-basket"></i></span>
     <span>Cereal Heaven</span>
-    <button type="button" class="btn-close btn-close-white ms-auto d-lg-none" data-bs-dismiss="offcanvas"
-        aria-label="Close"></button>
 </div>
-<ul class="nav flex-column">
-    <li class="nav-item">
-        <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
-            href="{% url 'Grocery:dashboard' %}">
-            <i class="bi bi-grid"></i> Dashboard
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if 'product' in request.resolver_match.url_name %}active{% endif %}"
-            href="{% url 'Grocery:product_list' %}">
-            <i class="bi bi-box"></i> Products
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if 'sale' in request.resolver_match.url_name %}active{% endif %}"
-            href="{% url 'Grocery:sales_list' %}">
-            <i class="bi bi-cart"></i> Sales
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if 'transaction' in request.resolver_match.url_name %}active{% endif %}"
-            href="{% url 'Grocery:transactions' %}">
-            <i class="bi bi-wallet2"></i> Transactions
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}"
-            href="{% url 'Grocery:reports' %}">
-            <i class="bi bi-bar-chart"></i> Reports
-        </a>
-    </li>
+
+<nav class="sidebar-scroll">
+    <div class="sidebar-heading">Overview</div>
+    <a class="side-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+        href="{% url 'Grocery:dashboard' %}">
+        <i class="bi bi-grid-1x2"></i> Dashboard
+    </a>
+
+    <div class="sidebar-heading">Operations</div>
+    <a class="side-link {% if 'product' in request.resolver_match.url_name or request.resolver_match.url_name == 'update_stock' or request.resolver_match.url_name == 'add_category' %}active{% endif %}"
+        href="{% url 'Grocery:product_list' %}">
+        <i class="bi bi-box-seam"></i> Products
+    </a>
+    <a class="side-link {% if 'sale' in request.resolver_match.url_name %}active{% endif %}"
+        href="{% url 'Grocery:sales_list' %}">
+        <i class="bi bi-cart3"></i> Sales
+    </a>
+    <a class="side-link {% if 'transaction' in request.resolver_match.url_name %}active{% endif %}"
+        href="{% url 'Grocery:transactions' %}">
+        <i class="bi bi-wallet2"></i> Transactions
+    </a>
+    <a class="side-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}"
+        href="{% url 'Grocery:reports' %}">
+        <i class="bi bi-bar-chart-line"></i> Reports
+    </a>
+
+    <div class="sidebar-heading">Account</div>
     {% if user.is_staff or user.is_superuser %}
-    <li class="nav-item">
-        <a class="nav-link {% if 'user' in request.resolver_match.url_name %}active{% endif %}"
-            href="{% url 'Grocery:user_list' %}">
-            <i class="bi bi-people"></i> Users
-        </a>
-    </li>
+    <a class="side-link {% if 'user' in request.resolver_match.url_name %}active{% endif %}"
+        href="{% url 'Grocery:user_list' %}">
+        <i class="bi bi-people"></i> Users
+    </a>
     {% endif %}
-    <li class="nav-item">
-        <a class="nav-link {% if 'settings' in request.resolver_match.url_name or 'password' in request.resolver_match.url_name %}active{% endif %}"
-            href="{% url 'Grocery:settings' %}">
-            <i class="bi bi-gear"></i> Settings
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link" href="{% url 'Grocery:logout' %}">
-            <i class="bi bi-box-arrow-right"></i> Logout
-        </a>
-    </li>
-</ul>
+    <a class="side-link {% if 'settings' in request.resolver_match.url_name or 'password' in request.resolver_match.url_name %}active{% endif %}"
+        href="{% url 'Grocery:settings' %}">
+        <i class="bi bi-gear"></i> Settings
+    </a>
+</nav>
+
 <div class="sidebar-footer">
-    Signed in as <strong>{{ user.username }}</strong><br>
-    {% if user.is_staff or user.is_superuser %}Administrator{% else %}Staff{% endif %} · v1.0
+    <div class="sidebar-user">
+        <span class="sidebar-user-avatar">{{ user.username|first }}</span>
+        <div class="sidebar-user-meta">
+            <span class="sidebar-user-name">{{ user.get_full_name|default:user.username }}</span>
+            <span class="sidebar-user-role">{% if user.is_staff or user.is_superuser %}Administrator{% else %}Staff{% endif %}</span>
+        </div>
+    </div>
+    <a href="{% url 'Grocery:logout' %}" class="sidebar-logout">
+        <i class="bi bi-box-arrow-right"></i> Sign out
+    </a>
 </div>

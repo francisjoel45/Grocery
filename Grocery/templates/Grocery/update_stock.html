@@ -1,25 +1,39 @@
 <!-- templates/Grocery/update_stock.html -->
 {% extends 'Grocery/base.html' %}
 
+{% block page_title %}Update Stock{% endblock %}
+
 {% block content %}
+<div class="page-header">
+    <div>
+        <h1><i class="bi bi-plus-slash-minus text-success"></i> Update Stock</h1>
+        <p class="page-sub">Adjust the current quantity for <strong>{{ product.name }}</strong>.</p>
+    </div>
+    <div class="page-actions">
+        <a href="{% url 'Grocery:product_list' %}" class="btn btn-outline-success"><i class="bi bi-arrow-left"></i> Back</a>
+    </div>
+</div>
+
 <div class="row justify-content-center">
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header bg-success text-white">
-                <h4 class="mb-0"><i class="bi bi-plus-slash-minus"></i> Update Stock - {{ product.name }}</h4>
-            </div>
-            <div class="card-body">
-                <p>Current Stock: <strong>{{ product.quantity }} kg</strong></p>
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <div class="text-muted small text-uppercase" style="letter-spacing:.06em;">Current stock</div>
+                        <div class="h3 mb-0">{{ product.quantity }} kg</div>
+                    </div>
+                    <div class="stat-icon green" style="width:56px;height:56px;font-size:1.6rem;"><i class="bi bi-boxes"></i></div>
+                </div>
                 <form method="post">
                     {% csrf_token %}
                     <div class="mb-3">
                         <label class="form-label">New Quantity (kg)</label>
-                        <input type="number" name="quantity" class="form-control" min="0" value="{{ product.quantity }}"
-                            required>
+                        <input type="number" name="quantity" class="form-control" min="0" step="0.01" value="{{ product.quantity }}" required>
                     </div>
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{% url 'Grocery:product_list' %}" class="btn btn-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-success">Update Stock</button>
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{% url 'Grocery:product_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-success"><i class="bi bi-check-lg"></i> Update Stock</button>
                     </div>
                 </form>
             </div>

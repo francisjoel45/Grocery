@@ -2,15 +2,23 @@
 {% extends 'Grocery/base.html' %}
 {% load crispy_forms_tags %}
 
+{% block page_title %}Record Sale{% endblock %}
+
 {% block content %}
+<div class="page-header">
+    <div>
+        <h1><i class="bi bi-cart-plus text-success"></i> Record a Sale</h1>
+        <p class="page-sub">Select a product and enter the quantity. Stock updates automatically.</p>
+    </div>
+    <div class="page-actions">
+        <a href="{% url 'Grocery:sales_list' %}" class="btn btn-outline-success"><i class="bi bi-arrow-left"></i> Back to Sales</a>
+    </div>
+</div>
+
 <div class="row justify-content-center">
-    <div class="col-md-7">
+    <div class="col-lg-7">
         <div class="card">
-            <div class="card-header bg-success text-white">
-                <h4 class="mb-0"><i class="bi bi-cart-plus"></i> Record Sale</h4>
-            </div>
-            <div class="card-body">
-                <p class="text-muted">Select product and enter quantity in kilograms. Stock will be automatically updated.</p>
+            <div class="card-body p-4">
                 {% crispy form %}
             </div>
         </div>
