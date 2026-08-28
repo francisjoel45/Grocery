@@ -36,6 +36,26 @@
             </div>
         </div>
     </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-cloud-download"></i> Backups</h5>
+            </div>
+            <div class="card-body d-flex flex-column">
+                <p class="flex-grow-1">Download a backup of the whole database or a portable data snapshot.</p>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'Grocery:export_database' %}" class="btn btn-success">
+                        <i class="bi bi-hdd"></i> Download SQLite File
+                    </a>
+                    <a href="{% url 'Grocery:export_data_json' %}" class="btn btn-outline-success">
+                        <i class="bi bi-filetype-json"></i> Download Data (JSON)
+                    </a>
+                </div>
+                <small class="text-muted mt-2">SQLite download works only when the app is running on SQLite. JSON works on any database.</small>
+            </div>
+        </div>
+    </div>
     {% endif %}
 
     <div class="col-md-6 col-lg-4">

@@ -10,6 +10,9 @@
         <p class="page-sub">Manage inventory, categories, and stock levels.</p>
     </div>
     <div class="page-actions">
+        <a href="{% url 'Grocery:export_products' %}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
+        </a>
         <a href="{% url 'Grocery:add_category' %}" class="btn btn-outline-success">
             <i class="bi bi-tags"></i> New Category
         </a>

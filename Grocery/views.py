@@ -639,6 +639,95 @@ def export_transactions(request):
 
 
 @login_required
+def export_products(request):
+    products = Product.objects.select_related('category').order_by('name')
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="products.csv"'
+    writer = csv.writer(response)
+    writer.writerow([
+        'Name', 'Category', 'Buying Price (KSh)', 'Selling Price (KSh)',
+        'Quantity (kg)', 'Min Stock Level (kg)', 'Stock Value (KSh)', 'Status', 'Date Added',
+    ])
+    for p in products:
+        writer.writerow([
+            p.name,
+            p.category.name if p.category else '',
+            p.buying_price,
+            p.selling_price,
+            p.quantity,
+            p.min_stock_level,
+            p.stock_value,
+            'Low Stock' if p.is_low_stock else 'In Stock',
+            format_local_datetime(p.date_added),
+        ])
+    return response
+
+
+@login_required
+@admin_required
+def export_users(request):
+    users = User.objects.all().order_by('username')
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="users.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Username', 'First Name', 'Last Name', 'Email', 'Role', 'Active', 'Date Joined', 'Last Login'])
+    for u in users:
+        writer.writerow([
+            u.username,
+            u.first_name,
+            u.last_name,
+            u.email,
+            'Administrator' if (u.is_staff or u.is_superuser) else 'Staff',
+            'Yes' if u.is_active else 'No',
+            format_local_datetime(u.date_joined) if u.date_joined else '',
+            format_local_datetime(u.last_login) if u.last_login else '',
+        ])
+    return response
+
+
+@login_required
+@admin_required
+def export_database(request):
+    """Download the raw SQLite database file (admin only)."""
+    from django.conf import settings as dj_settings
+    from django.http import FileResponse
+
+    default_db = dj_settings.DATABASES.get('default', {})
+    engine = default_db.get('ENGINE', '')
+    if 'sqlite' not in engine:
+        messages.error(request, 'Direct database download is only available when the app uses SQLite.')
+        return redirect('Grocery:settings')
+
+    db_path = default_db.get('NAME')
+    if not db_path or not os.path.exists(db_path):
+        messages.error(request, 'Database file was not found on the server.')
+        return redirect('Grocery:settings')
+
+    filename = f"cereal-heaven-backup-{timezone.localdate().strftime('%Y%m%d')}.sqlite3"
+    return FileResponse(open(db_path, 'rb'), as_attachment=True, filename=filename)
+
+
+@login_required
+@admin_required
+def export_data_json(request):
+    """Portable data-only backup (works on any database engine)."""
+    from django.core.management import call_command
+    from io import StringIO
+    buffer = StringIO()
+    call_command(
+        'dumpdata',
+        '--natural-primary', '--natural-foreign',
+        '--exclude=contenttypes', '--exclude=auth.Permission',
+        '--indent=2',
+        stdout=buffer,
+    )
+    response = HttpResponse(buffer.getvalue(), content_type='application/json')
+    filename = f"cereal-heaven-data-{timezone.localdate().strftime('%Y%m%d')}.json"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
 def print_report(request):
     today = timezone.now().date()
     week_start = today - timedelta(days=today.weekday())

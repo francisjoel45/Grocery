@@ -20,6 +20,7 @@ urlpatterns = [
     path('products/edit/<int:pk>/', views.edit_product, name='edit_product'),
     path('products/delete/<int:pk>/', views.delete_product, name='delete_product'),
     path('products/update-stock/<int:pk>/', views.update_stock, name='update_stock'),
+    path('products/export/', views.export_products, name='export_products'),
     
     # Sales
     path('sales/', views.sales_list, name='sales_list'),
@@ -44,4 +45,9 @@ urlpatterns = [
     path('users/add/', views.add_user, name='add_user'),
     path('users/edit/<int:pk>/', views.edit_user, name='edit_user'),
     path('users/delete/<int:pk>/', views.delete_user, name='delete_user'),
+    path('users/export/', views.export_users, name='export_users'),
+
+    # Admin backups
+    path('settings/export-database/', views.export_database, name='export_database'),
+    path('settings/export-data/', views.export_data_json, name='export_data_json'),
 ]

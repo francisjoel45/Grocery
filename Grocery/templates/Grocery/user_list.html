@@ -9,6 +9,9 @@
         <p class="page-sub">Create staff and administrator accounts and manage their access.</p>
     </div>
     <div class="page-actions">
+        <a href="{% url 'Grocery:export_users' %}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
+        </a>
         <a href="{% url 'Grocery:add_user' %}" class="btn btn-success">
             <i class="bi bi-person-plus"></i> Add User
         </a>
