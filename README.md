@@ -82,6 +82,23 @@ managed PostgreSQL database:
 
 Render runs migrations and collects static files during each deployment.
 
+## Deploying to Railway
+
+For Railway, set a PostgreSQL database first, then add this environment variable in the service settings:
+
+```bash
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+```
+
+Railway usually injects the value automatically when a PostgreSQL service is linked, but if it does not, paste the full Postgres connection string into the service environment.
+
+After deployment, run:
+
+```bash
+python manage.py migrate
+python manage.py createsuperuser
+```
+
 ## Main pages
 
 - `/` - secure login

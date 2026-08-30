@@ -35,6 +35,11 @@ ALLOWED_HOSTS = [
 ]
 if os.environ.get('RENDER_EXTERNAL_HOSTNAME'):
     ALLOWED_HOSTS.append(os.environ['RENDER_EXTERNAL_HOSTNAME'])
+if os.environ.get('RAILWAY_PUBLIC_DOMAIN'):
+    ALLOWED_HOSTS.append(os.environ['RAILWAY_PUBLIC_DOMAIN'])
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 # Application definition
@@ -97,9 +102,8 @@ else:
     if not DEBUG:
         import warnings
         warnings.warn(
-            'DATABASE_URL is not set while DEBUG is False. Falling back to SQLite, '
-            'which is stored on an ephemeral filesystem and WILL BE ERASED on every '
-            'deployment/restart. Provision a PostgreSQL database and set DATABASE_URL.',
+            'DATABASE_URL is not set while DEBUG is False. Falling back to SQLite for local development only. '
+            'For Railway or any hosted deployment, set DATABASE_URL to your PostgreSQL connection string.',
             RuntimeWarning,
         )
     DATABASES = {
@@ -156,6 +160,11 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 if os.environ.get('RENDER_EXTERNAL_HOSTNAME'):
     CSRF_TRUSTED_ORIGINS.append(f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}")
+if os.environ.get('RAILWAY_PUBLIC_DOMAIN'):
+    railway_domain = os.environ['RAILWAY_PUBLIC_DOMAIN'].strip()
+    if not railway_domain.startswith('http://') and not railway_domain.startswith('https://'):
+        railway_domain = f'https://{railway_domain}'
+    CSRF_TRUSTED_ORIGINS.append(railway_domain)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
