@@ -64,7 +64,7 @@
                 <tbody>
                     {% for transaction in transactions %}
                     <tr>
-                        <td>{{ transaction.date_sold|date:"Y-m-d H:i" }}</td>
+                        <td>{{ transaction.sale_datetime|date:"Y-m-d H:i" }}</td>
                         <td class="fw-semibold">{{ transaction.product.name }}</td>
                         <td>{{ transaction.quantity }}</td>
                         <td class="fw-semibold">KSh {{ transaction.total_amount|floatformat:2 }}</td>

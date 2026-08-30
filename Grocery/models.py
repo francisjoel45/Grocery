@@ -43,13 +43,18 @@ class Sale(models.Model):
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     profit = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     payment_method = models.CharField(max_length=20, choices=PAYMENT_CHOICES)
-    date_sold = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(default=timezone.now)
+    sale_datetime = models.DateTimeField(default=timezone.now)
+    date_sold = models.DateTimeField(default=timezone.now, blank=True, null=True)
     added_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     
     def __str__(self):
         return f"{self.product.name} - {self.quantity} kg"
     
     def save(self, *args, **kwargs):
+        if self.sale_datetime is None:
+            self.sale_datetime = timezone.now()
+        self.date_sold = self.sale_datetime
         self.unit_price = self.product.selling_price
         self.total_amount = self.unit_price * self.quantity
         self.profit = (self.product.selling_price - self.product.buying_price) * self.quantity

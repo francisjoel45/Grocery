@@ -1,7 +1,10 @@
 # Grocery/forms.py
+from datetime import datetime
+
 from django import forms
 from django.contrib.auth.forms import PasswordChangeForm, UserCreationForm
 from django.contrib.auth.models import User
+from django.utils import timezone
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column, Field
 from .models import Product, Category, Sale
@@ -70,6 +73,23 @@ class CategoryForm(forms.ModelForm):
 
 
 class SaleForm(forms.ModelForm):
+    sale_type = forms.ChoiceField(
+        choices=[('current', 'Current Sale'), ('previous', 'Previous Sale')],
+        initial='current',
+        widget=forms.RadioSelect,
+        label='Sale timing',
+    )
+    sale_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Sale date',
+    )
+    sale_time = forms.TimeField(
+        required=False,
+        widget=forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+        label='Sale time',
+    )
+
     class Meta:
         model = Sale
         fields = ['product', 'quantity', 'payment_method']
@@ -90,6 +110,12 @@ class SaleForm(forms.ModelForm):
             'product',
             'quantity',
             'payment_method',
+            'sale_type',
+            Row(
+                Column('sale_date', css_class='col-md-6'),
+                Column('sale_time', css_class='col-md-6'),
+                css_class='row',
+            ),
             Submit('submit', 'Record Sale', css_class='btn btn-success mt-3')
         )
     
@@ -100,6 +126,21 @@ class SaleForm(forms.ModelForm):
         if product and quantity:
             if quantity > product.quantity:
                 raise forms.ValidationError(f"Insufficient stock available. Only {product.quantity} kg in stock.")
+
+        sale_type = cleaned_data.get('sale_type')
+        sale_date = cleaned_data.get('sale_date')
+        sale_time = cleaned_data.get('sale_time')
+
+        if sale_type == 'previous':
+            if not sale_date or not sale_time:
+                raise forms.ValidationError('Select the exact sale date and time for a previous sale.')
+            cleaned_data['sale_datetime'] = timezone.make_aware(
+                datetime.combine(sale_date, sale_time),
+                timezone.get_current_timezone(),
+            )
+        else:
+            cleaned_data['sale_datetime'] = timezone.now()
+
         return cleaned_data
 
 class CustomPasswordChangeForm(PasswordChangeForm):

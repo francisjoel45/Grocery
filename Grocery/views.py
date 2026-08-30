@@ -129,16 +129,16 @@ def dashboard(request):
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
     
-    today_sales = Sale.objects.filter(date_sold__date=today).aggregate(
+    today_sales = Sale.objects.filter(sale_datetime__date=today).aggregate(
         total=Sum('total_amount'), count=Sum('quantity')) 
-    week_sales = Sale.objects.filter(date_sold__date__gte=week_start).aggregate(
+    week_sales = Sale.objects.filter(sale_datetime__date__gte=week_start).aggregate(
         total=Sum('total_amount'))
-    month_sales = Sale.objects.filter(date_sold__date__gte=month_start).aggregate(
+    month_sales = Sale.objects.filter(sale_datetime__date__gte=month_start).aggregate(
         total=Sum('total_amount'))
     
-    week_profit = Sale.objects.filter(date_sold__date__gte=week_start).aggregate(
+    week_profit = Sale.objects.filter(sale_datetime__date__gte=week_start).aggregate(
         profit=Sum('profit'))
-    month_profit = Sale.objects.filter(date_sold__date__gte=month_start).aggregate(
+    month_profit = Sale.objects.filter(sale_datetime__date__gte=month_start).aggregate(
         profit=Sum('profit'))
     
     low_stock_alerts = products.filter(quantity__lte=F('min_stock_level'))
@@ -146,9 +146,9 @@ def dashboard(request):
     # 7-day sales trend (oldest -> newest)
     trend_start = today - timedelta(days=6)
     daily_totals = {
-        row['date_sold__date']: row['total'] or 0
-        for row in Sale.objects.filter(date_sold__date__gte=trend_start)
-        .values('date_sold__date')
+        row['sale_datetime__date']: row['total'] or 0
+        for row in Sale.objects.filter(sale_datetime__date__gte=trend_start)
+        .values('sale_datetime__date')
         .annotate(total=Sum('total_amount'))
     }
     sales_trend_labels = []
@@ -160,7 +160,7 @@ def dashboard(request):
 
     # Top products this month by revenue
     top_products = (
-        Sale.objects.filter(date_sold__date__gte=month_start)
+        Sale.objects.filter(sale_datetime__date__gte=month_start)
         .values('product__name')
         .annotate(total=Sum('total_amount'))
         .order_by('-total')[:5]
@@ -270,7 +270,7 @@ def update_stock(request, pk):
 
 @login_required
 def sales_list(request):
-    sales = Sale.objects.all().order_by('-date_sold')
+    sales = Sale.objects.all().order_by('-sale_datetime')
     search_query = request.GET.get('search')
     from_date = request.GET.get('from_date')
     to_date = request.GET.get('to_date')
@@ -278,19 +278,19 @@ def sales_list(request):
     if search_query:
         sales = sales.filter(product__name__icontains=search_query)
     if from_date:
-        sales = sales.filter(date_sold__date__gte=from_date)
+        sales = sales.filter(sale_datetime__date__gte=from_date)
     if to_date:
-        sales = sales.filter(date_sold__date__lte=to_date)
+        sales = sales.filter(sale_datetime__date__lte=to_date)
     
     today = timezone.now().date()
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
     
-    daily_sales = Sale.objects.filter(date_sold__date=today).aggregate(
+    daily_sales = Sale.objects.filter(sale_datetime__date=today).aggregate(
         total=Sum('total_amount'), count=Sum('quantity'), profit=Sum('profit'))
-    weekly_sales = Sale.objects.filter(date_sold__date__gte=week_start).aggregate(
+    weekly_sales = Sale.objects.filter(sale_datetime__date__gte=week_start).aggregate(
         total=Sum('total_amount'), count=Sum('quantity'), profit=Sum('profit'))
-    monthly_sales = Sale.objects.filter(date_sold__date__gte=month_start).aggregate(
+    monthly_sales = Sale.objects.filter(sale_datetime__date__gte=month_start).aggregate(
         total=Sum('total_amount'), count=Sum('quantity'), profit=Sum('profit'))
     
     sales_page, page_size, pagination_query = paginate_queryset(request, sales)
@@ -316,7 +316,7 @@ def transactions(request):
         item['payment_method']: item for item in transaction_totals
     }
 
-    transactions = Sale.objects.select_related('product').order_by('-date_sold')
+    transactions = Sale.objects.select_related('product').order_by('-sale_datetime')
     transactions_page, page_size, pagination_query = paginate_queryset(request, transactions)
     context = {
         'cash_total': totals_by_method.get('Cash', {}).get('total') or 0,
@@ -341,6 +341,8 @@ def add_sale(request):
         if form.is_valid():
             sale = form.save(commit=False)
             sale.added_by = request.user
+            sale.sale_datetime = form.cleaned_data.get('sale_datetime', timezone.now())
+            sale.date_sold = sale.sale_datetime
             product = sale.product
             if sale.quantity > product.quantity:
                 messages.error(request, f"Insufficient stock available. Only {product.quantity} kg in stock.")
@@ -364,14 +366,14 @@ def reports(request):
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
     
-    weekly_sales = Sale.objects.filter(date_sold__date__gte=week_start)
+    weekly_sales = Sale.objects.filter(sale_datetime__date__gte=week_start)
     weekly_total = weekly_sales.aggregate(total=Sum('total_amount'))['total'] or 0
     weekly_profit = weekly_sales.aggregate(profit=Sum('profit'))['profit'] or 0
     weekly_best = weekly_sales.values('product__name').annotate(
         total=Sum('quantity')).order_by('-total')[:5]
     
     # Monthly Report
-    monthly_sales = Sale.objects.filter(date_sold__date__gte=month_start)
+    monthly_sales = Sale.objects.filter(sale_datetime__date__gte=month_start)
     monthly_total = monthly_sales.aggregate(total=Sum('total_amount'))['total'] or 0
     monthly_profit = monthly_sales.aggregate(profit=Sum('profit'))['profit'] or 0
     monthly_best = monthly_sales.values('product__name').annotate(
@@ -482,7 +484,7 @@ def delete_user(request, pk):
 
 @login_required
 def export_sales_pdf(request):
-    sales = Sale.objects.all().order_by('-date_sold')
+    sales = Sale.objects.all().order_by('-sale_datetime')
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4))
     elements = []
@@ -501,7 +503,7 @@ def export_sales_pdf(request):
     data = [['Date', 'Product', 'Quantity (kg)', 'Unit Price', 'Total', 'Profit', 'Payment Method']]
     for sale in sales:
         data.append([
-            format_local_datetime(sale.date_sold),
+            format_local_datetime(sale.sale_datetime),
             sale.product.name,
             str(sale.quantity),
             format_currency(sale.unit_price),
@@ -531,7 +533,7 @@ def export_sales_pdf(request):
 
 @login_required
 def export_sales_excel(request):
-    sales = Sale.objects.all().order_by('-date_sold')
+    sales = Sale.objects.all().order_by('-sale_datetime')
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="sales_report.csv"'
     
@@ -540,7 +542,7 @@ def export_sales_excel(request):
     
     for sale in sales:
         writer.writerow([
-            format_local_datetime(sale.date_sold),
+            format_local_datetime(sale.sale_datetime),
             sale.product.name,
             sale.quantity,
             sale.unit_price,
@@ -567,7 +569,7 @@ def export_period_csv(request, sales, period_name, filename):
     total_profit = Decimal('0')
     for sale in sales:
         writer.writerow([
-            format_local_datetime(sale.date_sold),
+            format_local_datetime(sale.sale_datetime),
             sale.product.name,
             sale.quantity,
             sale.unit_price,
@@ -588,8 +590,8 @@ def export_weekly_excel(request):
     today = timezone.localtime().date()
     week_start = today - timedelta(days=today.weekday())
     sales = Sale.objects.select_related('product').filter(
-        date_sold__date__gte=week_start
-    ).order_by('-date_sold')
+        sale_datetime__date__gte=week_start
+    ).order_by('-sale_datetime')
     return export_period_csv(request, sales, 'Weekly', 'weekly_sales_report.csv')
 
 
@@ -598,14 +600,14 @@ def export_monthly_excel(request):
     today = timezone.localtime().date()
     month_start = today.replace(day=1)
     sales = Sale.objects.select_related('product').filter(
-        date_sold__date__gte=month_start
-    ).order_by('-date_sold')
+        sale_datetime__date__gte=month_start
+    ).order_by('-sale_datetime')
     return export_period_csv(request, sales, 'Monthly', 'monthly_sales_report.csv')
 
 
 @login_required
 def export_transactions(request):
-    transactions = Sale.objects.select_related('product').order_by('-date_sold')
+    transactions = Sale.objects.select_related('product').order_by('-sale_datetime')
     totals = transactions.values('payment_method').annotate(total=Sum('total_amount'))
     totals_by_method = {
         item['payment_method']: item['total'] or 0 for item in totals
@@ -628,7 +630,7 @@ def export_transactions(request):
 
     for sale in transactions:
         writer.writerow([
-            format_local_datetime(sale.date_sold),
+            format_local_datetime(sale.sale_datetime),
             sale.product.name,
             sale.quantity,
             sale.unit_price,
@@ -733,8 +735,8 @@ def print_report(request):
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
     
-    weekly_sales = Sale.objects.filter(date_sold__date__gte=week_start)
-    monthly_sales = Sale.objects.filter(date_sold__date__gte=month_start)
+    weekly_sales = Sale.objects.filter(sale_datetime__date__gte=week_start)
+    monthly_sales = Sale.objects.filter(sale_datetime__date__gte=month_start)
     
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)

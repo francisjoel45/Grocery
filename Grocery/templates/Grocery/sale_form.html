@@ -24,4 +24,31 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const typeInputs = document.querySelectorAll('input[name="sale_type"]');
+        const dateWrap = document.getElementById('div_id_sale_date');
+        const timeWrap = document.getElementById('div_id_sale_time');
+        const dateField = document.getElementById('id_sale_date');
+        const timeField = document.getElementById('id_sale_time');
+
+        function updateSaleTimingFields() {
+            const selected = document.querySelector('input[name="sale_type"]:checked');
+            const showPrevious = selected && selected.value === 'previous';
+
+            if (dateWrap) dateWrap.style.display = showPrevious ? '' : 'none';
+            if (timeWrap) timeWrap.style.display = showPrevious ? '' : 'none';
+
+            if (dateField) dateField.required = showPrevious;
+            if (timeField) timeField.required = showPrevious;
+        }
+
+        typeInputs.forEach(function (input) {
+            input.addEventListener('change', updateSaleTimingFields);
+        });
+
+        updateSaleTimingFields();
+    });
+</script>
 {% endblock %}

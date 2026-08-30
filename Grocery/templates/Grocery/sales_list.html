@@ -89,7 +89,7 @@
                 <tbody>
                     {% for sale in sales %}
                     <tr>
-                        <td>{{ sale.date_sold|date:"Y-m-d H:i" }}</td>
+                        <td>{{ sale.sale_datetime|date:"Y-m-d H:i" }}</td>
                         <td class="fw-semibold">{{ sale.product.name }}</td>
                         <td>{{ sale.quantity }}</td>
                         <td>KSh {{ sale.unit_price }}</td>
