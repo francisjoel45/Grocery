@@ -190,6 +190,27 @@
     </div>
 </div>
 
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="month" class="form-label fw-semibold">Select month</label>
+                <input type="month" name="month" id="month" class="form-control" value="{{ selected_month }}">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-success w-100">
+                    <i class="bi bi-funnel me-1"></i> View performance
+                </button>
+            </div>
+            <div class="col-md-4">
+                <a href="{% url 'Grocery:export_monthly_excel' %}?month={{ selected_month }}" class="btn btn-outline-success w-100" target="_blank">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Download Excel CSV
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="row g-4">
     <div class="col-lg-6">
         <div class="card period-card h-100">
@@ -225,10 +246,7 @@
     <div class="col-lg-6">
         <div class="card period-card h-100">
             <div class="period-heading d-flex justify-content-between align-items-center">
-                <h5><i class="bi bi-calendar-month me-2"></i> Monthly performance</h5>
-                <a href="{% url 'Grocery:export_monthly_excel' %}" class="btn btn-sm btn-light text-success">
-                    <i class="bi bi-filetype-csv me-1"></i> Download CSV for Excel
-                </a>
+                <h5><i class="bi bi-calendar-month me-2"></i> Monthly performance — {{ selected_month_label }}</h5>
             </div>
             <div class="period-body">
                 <div class="metric-row">
@@ -247,7 +265,7 @@
                     <span class="badge bg-success-subtle text-success">{{ item.total }} kg</span>
                 </div>
                 {% empty %}
-                <p class="text-muted mb-0">No sales recorded this month.</p>
+                <p class="text-muted mb-0">No sales recorded in this selected month.</p>
                 {% endfor %}
             </div>
         </div>

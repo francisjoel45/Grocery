@@ -1,6 +1,7 @@
 # Grocery/views.py (updated with CSRF protection)
 import os
 import secrets
+from functools import wraps
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -49,6 +50,23 @@ def format_currency(value):
 
 def format_local_datetime(value):
     return timezone.localtime(value).strftime('%Y-%m-%d %H:%M')
+
+
+SHOP_ATTENDANT_GROUP_NAME = 'Shop Attendant'
+
+
+def is_shop_attendant(user):
+    return user.is_authenticated and user.groups.filter(name=SHOP_ATTENDANT_GROUP_NAME).exists()
+
+
+def shop_attendant_required(view_func):
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser or is_shop_attendant(request.user)):
+            return view_func(request, *args, **kwargs)
+        messages.error(request, 'This account is restricted to the sales counter only.')
+        return redirect('Grocery:dashboard')
+    return _wrapped
 
 
 PAGE_SIZE_OPTIONS = (10, 25, 50, 100)
@@ -120,6 +138,17 @@ def bootstrap_admin(request, token):
 
 @login_required
 def dashboard(request):
+    if is_shop_attendant(request.user):
+        today = timezone.now().date()
+        recent_sales = Sale.objects.select_related('product').order_by('-sale_datetime')[:5]
+        today_sales = Sale.objects.filter(sale_datetime__date=today).aggregate(total=Sum('total_amount'))['total'] or 0
+        context = {
+            'is_shop_attendant': True,
+            'today_sales': today_sales,
+            'recent_sales': recent_sales,
+        }
+        return render(request, 'Grocery/dashboard.html', context)
+
     products = Product.objects.all()
     total_products = products.count()
     total_stock_items = sum(p.quantity for p in products)
@@ -169,6 +198,7 @@ def dashboard(request):
     top_products_data = [float(item['total'] or 0) for item in top_products]
 
     context = {
+        'is_shop_attendant': False,
         'total_products': total_products,
         'total_stock_items': total_stock_items,
         'low_stock_count': low_stock.count(),
@@ -187,6 +217,10 @@ def dashboard(request):
 
 @login_required
 def product_list(request):
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Shop attendants can only record sales.')
+        return redirect('Grocery:sales_list')
+
     products = Product.objects.all().order_by('name')
     search_query = request.GET.get('search')
     if search_query:
@@ -204,6 +238,10 @@ def product_list(request):
 
 @login_required
 def add_product(request):
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Shop attendants can only record sales.')
+        return redirect('Grocery:sales_list')
+
     if request.method == 'POST':
         form = ProductForm(request.POST)
         if form.is_valid():
@@ -217,6 +255,10 @@ def add_product(request):
 
 @login_required
 def add_category(request):
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Shop attendants can only record sales.')
+        return redirect('Grocery:sales_list')
+
     if request.method == 'POST':
         form = CategoryForm(request.POST)
         if form.is_valid():
@@ -230,6 +272,10 @@ def add_category(request):
 
 @login_required
 def edit_product(request, pk):
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Shop attendants can only record sales.')
+        return redirect('Grocery:sales_list')
+
     product = get_object_or_404(Product, pk=pk)
     if request.method == 'POST':
         form = ProductForm(request.POST, instance=product)
@@ -243,6 +289,10 @@ def edit_product(request, pk):
 
 @login_required
 def delete_product(request, pk):
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Shop attendants can only record sales.')
+        return redirect('Grocery:sales_list')
+
     product = get_object_or_404(Product, pk=pk)
     if request.method == 'POST':
         product.delete()
@@ -252,6 +302,10 @@ def delete_product(request, pk):
 
 @login_required
 def update_stock(request, pk):
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Shop attendants can only record sales.')
+        return redirect('Grocery:sales_list')
+
     product = get_object_or_404(Product, pk=pk)
     if request.method == 'POST':
         try:
@@ -269,6 +323,7 @@ def update_stock(request, pk):
     return render(request, 'Grocery/update_stock.html', {'product': product})
 
 @login_required
+@shop_attendant_required
 def sales_list(request):
     sales = Sale.objects.all().order_by('-sale_datetime')
     search_query = request.GET.get('search')
@@ -308,6 +363,10 @@ def sales_list(request):
 
 @login_required
 def transactions(request):
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Shop attendants can only record sales.')
+        return redirect('Grocery:sales_list')
+
     transaction_totals = Sale.objects.values('payment_method').annotate(
         total=Sum('total_amount'),
         count=Count('id'),
@@ -335,6 +394,7 @@ def transactions(request):
 
 
 @login_required
+@shop_attendant_required
 def add_sale(request):
     if request.method == 'POST':
         form = SaleForm(request.POST)
@@ -361,11 +421,25 @@ def add_sale(request):
 
 @login_required
 def reports(request):
-    # Weekly Report
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Shop attendants can only record sales.')
+        return redirect('Grocery:sales_list')
+
     today = timezone.now().date()
+    selected_month = request.GET.get('month')
+    try:
+        selected_month_date = datetime.strptime(selected_month, '%Y-%m').date() if selected_month else today
+    except ValueError:
+        selected_month_date = today
+
+    month_start = selected_month_date.replace(day=1)
+    if month_start.month == 12:
+        next_month_start = month_start.replace(year=month_start.year + 1, month=1)
+    else:
+        next_month_start = month_start.replace(month=month_start.month + 1)
+
+    # Weekly Report
     week_start = today - timedelta(days=today.weekday())
-    month_start = today.replace(day=1)
-    
     weekly_sales = Sale.objects.filter(sale_datetime__date__gte=week_start)
     weekly_total = weekly_sales.aggregate(total=Sum('total_amount'))['total'] or 0
     weekly_profit = weekly_sales.aggregate(profit=Sum('profit'))['profit'] or 0
@@ -373,7 +447,10 @@ def reports(request):
         total=Sum('quantity')).order_by('-total')[:5]
     
     # Monthly Report
-    monthly_sales = Sale.objects.filter(sale_datetime__date__gte=month_start)
+    monthly_sales = Sale.objects.filter(
+        sale_datetime__date__gte=month_start,
+        sale_datetime__date__lt=next_month_start,
+    )
     monthly_total = monthly_sales.aggregate(total=Sum('total_amount'))['total'] or 0
     monthly_profit = monthly_sales.aggregate(profit=Sum('profit'))['profit'] or 0
     monthly_best = monthly_sales.values('product__name').annotate(
@@ -386,6 +463,8 @@ def reports(request):
         'monthly_total': monthly_total,
         'monthly_profit': monthly_profit,
         'monthly_best': monthly_best,
+        'selected_month': month_start.strftime('%Y-%m'),
+        'selected_month_label': month_start.strftime('%b %Y'),
     }
     return render(request, 'Grocery/reports.html', context)
 
@@ -597,12 +676,26 @@ def export_weekly_excel(request):
 
 @login_required
 def export_monthly_excel(request):
-    today = timezone.localtime().date()
-    month_start = today.replace(day=1)
+    selected_month = request.GET.get('month')
+    try:
+        selected_date = datetime.strptime(selected_month, '%Y-%m').date() if selected_month else timezone.localtime().date()
+    except ValueError:
+        selected_date = timezone.localtime().date()
+
+    month_start = selected_date.replace(day=1)
+    if month_start.month == 12:
+        next_month_start = month_start.replace(year=month_start.year + 1, month=1)
+    else:
+        next_month_start = month_start.replace(month=month_start.month + 1)
+
     sales = Sale.objects.select_related('product').filter(
-        sale_datetime__date__gte=month_start
+        sale_datetime__date__gte=month_start,
+        sale_datetime__date__lt=next_month_start,
     ).order_by('-sale_datetime')
-    return export_period_csv(request, sales, 'Monthly', 'monthly_sales_report.csv')
+
+    period_label = month_start.strftime('%B %Y')
+    filename = f"{month_start.strftime('%Y-%m')}_sales_report.csv"
+    return export_period_csv(request, sales, f'Monthly - {period_label}', filename)
 
 
 @login_required
