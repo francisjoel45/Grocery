@@ -3,11 +3,63 @@ from datetime import datetime
 
 from django import forms
 from django.contrib.auth.forms import PasswordChangeForm, UserCreationForm
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.utils import timezone
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column, Field
 from .models import Product, Category, Sale
+
+SHOP_ATTENDANT_GROUP_NAME = 'Shop Attendant'
+USER_ROLE_CHOICES = (
+    ('staff', 'Staff / Administrator'),
+    ('shop_attendant', 'Shop Attendant'),
+    ('standard', 'Standard User'),
+)
+
+
+def get_user_role(user):
+    if user.is_authenticated and user.groups.filter(name=SHOP_ATTENDANT_GROUP_NAME).exists():
+        return 'shop_attendant'
+    if user.is_authenticated and (user.is_staff or user.is_superuser):
+        return 'staff'
+    return 'standard'
+
+
+class RoleAssignmentMixin:
+    role = forms.ChoiceField(
+        choices=USER_ROLE_CHOICES,
+        initial='standard',
+        label='Role',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields['role'].initial = get_user_role(self.instance)
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        role = self.cleaned_data.get('role')
+        shop_group, _ = Group.objects.get_or_create(name=SHOP_ATTENDANT_GROUP_NAME)
+
+        if role == 'shop_attendant':
+            user.is_staff = False
+            user.is_superuser = False
+            user.groups.add(shop_group)
+        elif role == 'staff':
+            user.is_staff = True
+            user.is_superuser = False
+            user.groups.remove(shop_group)
+        else:
+            user.is_staff = False
+            user.is_superuser = False
+            user.groups.remove(shop_group)
+
+        if commit:
+            user.save()
+            self.save_m2m()
+        return user
 
 class ProductForm(forms.ModelForm):
     class Meta:
@@ -156,7 +208,7 @@ class CustomPasswordChangeForm(PasswordChangeForm):
         )
 
 
-class AdminUserCreationForm(UserCreationForm):
+class AdminUserCreationForm(RoleAssignmentMixin, UserCreationForm):
     email = forms.EmailField(
         required=False,
         widget=forms.EmailInput(attrs={
@@ -173,15 +225,10 @@ class AdminUserCreationForm(UserCreationForm):
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Last name'}),
     )
-    is_staff = forms.BooleanField(
-        required=False,
-        label='Administrator access',
-        help_text='Administrators can manage users and access every feature.',
-    )
 
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'email', 'is_staff', 'password1', 'password2']
+        fields = ['username', 'first_name', 'last_name', 'email', 'password1', 'password2']
         widgets = {
             'username': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -207,7 +254,7 @@ class AdminUserCreationForm(UserCreationForm):
                 Column('password1', css_class='col-md-6'),
                 Column('password2', css_class='col-md-6'),
             ),
-            Field('is_staff'),
+            Field('role'),
         )
 
     def clean_email(self):
@@ -217,12 +264,11 @@ class AdminUserCreationForm(UserCreationForm):
         return email
 
 
-class AdminUserEditForm(forms.ModelForm):
+class AdminUserEditForm(RoleAssignmentMixin, forms.ModelForm):
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'email', 'is_staff', 'is_active']
+        fields = ['username', 'first_name', 'last_name', 'email', 'is_active']
         labels = {
-            'is_staff': 'Administrator access',
             'is_active': 'Account active',
         }
         widgets = {
@@ -245,7 +291,7 @@ class AdminUserEditForm(forms.ModelForm):
                 Column('username', css_class='col-md-6'),
                 Column('email', css_class='col-md-6'),
             ),
-            Field('is_staff'),
+            Field('role'),
             Field('is_active'),
         )
 

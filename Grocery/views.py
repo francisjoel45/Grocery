@@ -530,7 +530,8 @@ def edit_user(request, pk):
     if request.method == 'POST':
         form = AdminUserEditForm(request.POST, instance=user_obj)
         if form.is_valid():
-            if user_obj == request.user and not form.cleaned_data.get('is_staff'):
+            selected_role = form.cleaned_data.get('role')
+            if user_obj == request.user and selected_role != 'staff':
                 messages.error(request, 'You cannot remove your own administrator access.')
             elif user_obj == request.user and not form.cleaned_data.get('is_active'):
                 messages.error(request, 'You cannot deactivate your own account.')
