@@ -26,13 +26,6 @@ def get_user_role(user):
 
 
 class RoleAssignmentMixin:
-    role = forms.ChoiceField(
-        choices=USER_ROLE_CHOICES,
-        initial='standard',
-        label='Role',
-        widget=forms.Select(attrs={'class': 'form-control'}),
-    )
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
@@ -209,6 +202,12 @@ class CustomPasswordChangeForm(PasswordChangeForm):
 
 
 class AdminUserCreationForm(RoleAssignmentMixin, UserCreationForm):
+    role = forms.ChoiceField(
+        choices=USER_ROLE_CHOICES,
+        initial='standard',
+        label='Role',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
     email = forms.EmailField(
         required=False,
         widget=forms.EmailInput(attrs={
@@ -265,6 +264,13 @@ class AdminUserCreationForm(RoleAssignmentMixin, UserCreationForm):
 
 
 class AdminUserEditForm(RoleAssignmentMixin, forms.ModelForm):
+    role = forms.ChoiceField(
+        choices=USER_ROLE_CHOICES,
+        initial='standard',
+        label='Role',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
+
     class Meta:
         model = User
         fields = ['username', 'first_name', 'last_name', 'email', 'is_active']
