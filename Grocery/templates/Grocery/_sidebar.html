@@ -10,6 +10,13 @@
         <i class="bi bi-grid-1x2"></i> Dashboard
     </a>
 
+    {% if is_shop_attendant %}
+    <div class="sidebar-heading">Sales Counter</div>
+    <a class="side-link {% if 'sale' in request.resolver_match.url_name %}active{% endif %}"
+        href="{% url 'Grocery:sales_list' %}">
+        <i class="bi bi-cart3"></i> Sales
+    </a>
+    {% else %}
     <div class="sidebar-heading">Operations</div>
     <a class="side-link {% if 'product' in request.resolver_match.url_name or request.resolver_match.url_name == 'update_stock' or request.resolver_match.url_name == 'add_category' %}active{% endif %}"
         href="{% url 'Grocery:product_list' %}">
@@ -27,13 +34,16 @@
         href="{% url 'Grocery:reports' %}">
         <i class="bi bi-bar-chart-line"></i> Reports
     </a>
+    {% endif %}
 
     <div class="sidebar-heading">Account</div>
     {% if user.is_staff or user.is_superuser %}
+    {% if not is_shop_attendant %}
     <a class="side-link {% if 'user' in request.resolver_match.url_name %}active{% endif %}"
         href="{% url 'Grocery:user_list' %}">
         <i class="bi bi-people"></i> Users
     </a>
+    {% endif %}
     {% endif %}
     <a class="side-link {% if 'settings' in request.resolver_match.url_name or 'password' in request.resolver_match.url_name %}active{% endif %}"
         href="{% url 'Grocery:settings' %}">
@@ -46,7 +56,7 @@
         <span class="sidebar-user-avatar">{{ user.username|first }}</span>
         <div class="sidebar-user-meta">
             <span class="sidebar-user-name">{{ user.get_full_name|default:user.username }}</span>
-            <span class="sidebar-user-role">{% if user.is_staff or user.is_superuser %}Administrator{% else %}Staff{% endif %}</span>
+            <span class="sidebar-user-role">{% if is_shop_attendant %}Shop Attendant{% elif user.is_staff or user.is_superuser %}Administrator{% else %}Staff{% endif %}</span>
         </div>
     </div>
     <a href="{% url 'Grocery:logout' %}" class="sidebar-logout">
