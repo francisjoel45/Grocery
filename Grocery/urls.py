@@ -25,11 +25,16 @@ urlpatterns = [
     # Sales
     path('sales/', views.sales_list, name='sales_list'),
     path('sales/add/', views.add_sale, name='add_sale'),
+    path('sales/edit/<int:pk>/', views.edit_sale, name='edit_sale'),
+    path('sales/delete/<int:pk>/', views.delete_sale, name='delete_sale'),
     path('transactions/', views.transactions, name='transactions'),
     path('transactions/export/', views.export_transactions, name='export_transactions'),
     
     # Reports
     path('reports/', views.reports, name='reports'),
+    path('reports/monthly/', views.monthly_reports, name='monthly_reports'),
+    path('reports/monthly/<str:month>/pdf/', views.export_monthly_report_pdf, name='monthly_report_pdf'),
+    path('reports/monthly/<str:month>/csv/', views.export_monthly_report_csv, name='monthly_report_csv'),
     path('reports/export-pdf/', views.export_sales_pdf, name='export_pdf'),
     path('reports/export-excel/', views.export_sales_excel, name='export_excel'),
     path('reports/export-weekly-excel/', views.export_weekly_excel, name='export_weekly_excel'),

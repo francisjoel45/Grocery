@@ -9,7 +9,9 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.models import User
 from django.contrib.auth import update_session_auth_hash
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Sum, Count, Q, F
+from django.db.models.functions import TruncMonth
 from django.utils import timezone
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -419,6 +421,63 @@ def add_sale(request):
         form = SaleForm()
     return render(request, 'Grocery/sale_form.html', {'form': form})
 
+
+@login_required
+@admin_required
+def edit_sale(request, pk):
+    sale = get_object_or_404(Sale.objects.select_related('product'), pk=pk)
+    if request.method == 'POST':
+        form = SaleForm(request.POST, instance=sale)
+        if form.is_valid():
+            with transaction.atomic():
+                locked_sale = Sale.objects.select_for_update().select_related('product').get(pk=pk)
+                old_product = Product.objects.select_for_update().get(pk=locked_sale.product_id)
+                updated_sale = form.save(commit=False)
+                new_product = Product.objects.select_for_update().get(pk=updated_sale.product_id)
+
+                old_product.quantity += locked_sale.quantity
+                if new_product.pk == old_product.pk:
+                    available_quantity = old_product.quantity
+                else:
+                    available_quantity = new_product.quantity
+                if updated_sale.quantity > available_quantity:
+                    form.add_error(
+                        'quantity',
+                        f'Insufficient stock available. Only {available_quantity} kg in stock.',
+                    )
+                else:
+                    old_product.save(update_fields=['quantity'])
+                    updated_sale.save()
+                    if new_product.pk == old_product.pk:
+                        new_product.quantity = old_product.quantity - updated_sale.quantity
+                    else:
+                        new_product.quantity -= updated_sale.quantity
+                    new_product.save(update_fields=['quantity'])
+                    messages.success(request, 'Sale updated successfully!')
+                    return redirect('Grocery:sales_list')
+    else:
+        form = SaleForm(instance=sale)
+    return render(request, 'Grocery/sale_form.html', {
+        'form': form,
+        'title': 'Edit Sale',
+    })
+
+
+@login_required
+@admin_required
+def delete_sale(request, pk):
+    sale = get_object_or_404(Sale.objects.select_related('product'), pk=pk)
+    if request.method == 'POST':
+        with transaction.atomic():
+            product = Product.objects.select_for_update().get(pk=sale.product_id)
+            product.quantity += sale.quantity
+            product.save(update_fields=['quantity'])
+            sale.delete()
+        messages.success(request, 'Sale deleted successfully and stock restored.')
+        return redirect('Grocery:sales_list')
+    return render(request, 'Grocery/sale_confirm_delete.html', {'sale': sale})
+
+
 @login_required
 def reports(request):
     if is_shop_attendant(request.user):
@@ -467,6 +526,165 @@ def reports(request):
         'selected_month_label': month_start.strftime('%b %Y'),
     }
     return render(request, 'Grocery/reports.html', context)
+
+
+def _month_bounds(month_value):
+    """Return timezone-aware start/end datetimes for a YYYY-MM value."""
+    try:
+        month_start = datetime.strptime(month_value, '%Y-%m').date()
+    except (TypeError, ValueError):
+        raise Http404('Invalid report month.')
+
+    if month_start.month == 12:
+        next_month = month_start.replace(year=month_start.year + 1, month=1)
+    else:
+        next_month = month_start.replace(month=month_start.month + 1)
+
+    tz = timezone.get_current_timezone()
+    return (
+        timezone.make_aware(datetime.combine(month_start, datetime.min.time()), tz),
+        timezone.make_aware(datetime.combine(next_month, datetime.min.time()), tz),
+    )
+
+
+def _monthly_sales_queryset(month_value):
+    start, end = _month_bounds(month_value)
+    return (
+        Sale.objects.select_related('product')
+        .filter(sale_datetime__gte=start, sale_datetime__lt=end)
+        .order_by('-sale_datetime', '-pk')
+    )
+
+
+@login_required
+def monthly_reports(request):
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Shop attendants can only record sales.')
+        return redirect('Grocery:sales_list')
+
+    monthly_reports_data = (
+        Sale.objects.annotate(month=TruncMonth(
+            'sale_datetime', tzinfo=timezone.get_current_timezone()
+        ))
+        .values('month')
+        .annotate(
+            total_sales=Sum('total_amount'),
+            total_profit=Sum('profit'),
+            transaction_count=Count('id'),
+        )
+        .order_by('-month')
+    )
+    totals = Sale.objects.aggregate(
+        total_sales=Sum('total_amount'),
+        total_profit=Sum('profit'),
+        transaction_count=Count('id'),
+    )
+    return render(request, 'Grocery/monthly_reports.html', {
+        'monthly_reports': monthly_reports_data,
+        'all_time_total_sales': totals['total_sales'] or 0,
+        'all_time_total_profit': totals['total_profit'] or 0,
+        'all_time_transaction_count': totals['transaction_count'] or 0,
+    })
+
+
+def _report_month_label(month_value):
+    start, _ = _month_bounds(month_value)
+    return timezone.localtime(start).strftime('%B %Y')
+
+
+def _build_monthly_csv(month_value, sales):
+    label = _report_month_label(month_value)
+    total_sales = sum((sale.total_amount for sale in sales), Decimal('0'))
+    total_profit = sum((sale.profit for sale in sales), Decimal('0'))
+    output = io.StringIO(newline='')
+    writer = csv.writer(output)
+    writer.writerow([f'Grocery Management - Monthly Report ({label})'])
+    writer.writerow([])
+    writer.writerow(['Summary'])
+    writer.writerow(['Metric', 'Value'])
+    writer.writerow(['Total sales (KSh)', f'{total_sales:.2f}'])
+    writer.writerow(['Total profit (KSh)', f'{total_profit:.2f}'])
+    writer.writerow(['Transaction count', len(sales)])
+    writer.writerow([])
+    writer.writerow(['Transactions'])
+    writer.writerow([
+        'Date', 'Product', 'Quantity (kg)', 'Unit price (KSh)',
+        'Total sales (KSh)', 'Profit (KSh)', 'Payment method',
+    ])
+    for sale in sales:
+        writer.writerow([
+            format_local_datetime(sale.sale_datetime),
+            sale.product.name,
+            f'{sale.quantity:.2f}',
+            f'{sale.unit_price:.2f}',
+            f'{sale.total_amount:.2f}',
+            f'{sale.profit:.2f}',
+            sale.payment_method,
+        ])
+    return output.getvalue().encode('utf-8-sig')
+
+
+@login_required
+def export_monthly_report_pdf(request, month):
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Shop attendants can only record sales.')
+        return redirect('Grocery:sales_list')
+    sales = list(_monthly_sales_queryset(month))
+    label = _report_month_label(month)
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), rightMargin=24, leftMargin=24)
+    styles = getSampleStyleSheet()
+    elements = [
+        Paragraph(f'Grocery Management - Monthly Report: {label}', styles['Title']),
+        Paragraph(
+            f'Total sales: {format_currency(sum((s.total_amount for s in sales), Decimal("0")))} '
+            f'| Total profit: {format_currency(sum((s.profit for s in sales), Decimal("0")))} '
+            f'| Transactions: {len(sales)}',
+            styles['Normal'],
+        ),
+        Spacer(1, 14),
+    ]
+    data = [['Date', 'Product', 'Quantity (kg)', 'Unit Price', 'Total Sales', 'Profit', 'Payment']]
+    data.extend([
+        [
+            format_local_datetime(sale.sale_datetime), sale.product.name, str(sale.quantity),
+            format_currency(sale.unit_price), format_currency(sale.total_amount),
+            format_currency(sale.profit), sale.payment_method,
+        ]
+        for sale in sales
+    ])
+    if len(data) == 1:
+        data.append(['No transactions recorded', '', '', '', '', '', ''])
+    table = Table(data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.darkgreen),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(table)
+    doc.build(elements)
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{month}_monthly_report.pdf"'
+    return response
+
+
+@login_required
+def export_monthly_report_csv(request, month):
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Shop attendants can only record sales.')
+        return redirect('Grocery:sales_list')
+    sales = list(_monthly_sales_queryset(month))
+    csv_data = _build_monthly_csv(month, sales)
+    response = HttpResponse(
+        csv_data,
+        content_type='text/csv; charset=utf-8',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{month}_monthly_report.csv"'
+    return response
+
 
 @login_required
 def settings_view(request):

@@ -1,0 +1,30 @@
+{% extends 'Grocery/base.html' %}
+
+{% block page_title %}Delete Sale{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body text-center p-4">
+                <div class="stat-icon red mx-auto mb-3" style="width:64px;height:64px;font-size:1.8rem;">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+                <h4>Delete Sale</h4>
+                <p class="text-muted">
+                    Are you sure you want to delete the sale of
+                    <strong>{{ sale.quantity }} kg of {{ sale.product.name }}</strong>?
+                    The recorded quantity will be restored to stock.
+                </p>
+                <form method="post" class="d-flex justify-content-center gap-2 mt-3">
+                    {% csrf_token %}
+                    <a href="{% url 'Grocery:sales_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete Sale
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

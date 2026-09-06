@@ -84,6 +84,7 @@
                         <th>Total</th>
                         <th>Profit</th>
                         <th>Payment</th>
+                        {% if user.is_staff or user.is_superuser %}<th>Actions</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -96,9 +97,21 @@
                         <td class="fw-semibold">KSh {{ sale.total_amount }}</td>
                         <td class="text-success fw-semibold">KSh {{ sale.profit }}</td>
                         <td><span class="badge {% if sale.payment_method == 'Cash' %}bg-success-subtle text-success{% else %}bg-info-subtle text-info{% endif %}">{{ sale.payment_method }}</span></td>
+                        {% if user.is_staff or user.is_superuser %}
+                        <td>
+                            <div class="d-flex gap-1">
+                                <a href="{% url 'Grocery:edit_sale' sale.pk %}" class="btn btn-sm btn-outline-primary" title="Edit sale">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="{% url 'Grocery:delete_sale' sale.pk %}" class="btn btn-sm btn-outline-danger" title="Delete sale">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </div>
+                        </td>
+                        {% endif %}
                     </tr>
                     {% empty %}
-                    <tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No sales records found</td></tr>
+                    <tr><td colspan="{% if user.is_staff or user.is_superuser %}8{% else %}7{% endif %}" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No sales records found</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

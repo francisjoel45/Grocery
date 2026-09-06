@@ -73,6 +73,13 @@ class ProductForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and not self.is_bound:
+            sale_datetime = timezone.localtime(self.instance.sale_datetime)
+            self.initial.update({
+                'sale_type': 'previous',
+                'sale_date': sale_datetime.date(),
+                'sale_time': sale_datetime.time().replace(second=0, microsecond=0),
+            })
         self.helper = FormHelper()
         self.helper.form_method = 'post'
         self.helper.layout = Layout(
@@ -161,7 +168,11 @@ class SaleForm(forms.ModelForm):
                 Column('sale_time', css_class='col-md-6'),
                 css_class='row',
             ),
-            Submit('submit', 'Record Sale', css_class='btn btn-success mt-3')
+            Submit(
+                'submit',
+                'Update Sale' if self.instance and self.instance.pk else 'Record Sale',
+                css_class='btn btn-success mt-3',
+            )
         )
     
     def clean(self):
@@ -169,8 +180,13 @@ class SaleForm(forms.ModelForm):
         product = cleaned_data.get('product')
         quantity = cleaned_data.get('quantity')
         if product and quantity:
-            if quantity > product.quantity:
-                raise forms.ValidationError(f"Insufficient stock available. Only {product.quantity} kg in stock.")
+            available_quantity = product.quantity
+            if self.instance and self.instance.pk and self.instance.product_id == product.pk:
+                available_quantity += self.instance.quantity
+            if quantity > available_quantity:
+                raise forms.ValidationError(
+                    f"Insufficient stock available. Only {available_quantity} kg in stock."
+                )
 
         sale_type = cleaned_data.get('sale_type')
         sale_date = cleaned_data.get('sale_date')
