@@ -1,6 +1,4 @@
 # Grocery/forms.py
-from datetime import datetime
-
 from django import forms
 from django.contrib.auth.forms import PasswordChangeForm, UserCreationForm
 from django.contrib.auth.models import Group, User
@@ -73,13 +71,6 @@ class ProductForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk and not self.is_bound:
-            sale_datetime = timezone.localtime(self.instance.sale_datetime)
-            self.initial.update({
-                'sale_type': 'previous',
-                'sale_date': sale_datetime.date(),
-                'sale_time': sale_datetime.time().replace(second=0, microsecond=0),
-            })
         self.helper = FormHelper()
         self.helper.form_method = 'post'
         self.helper.layout = Layout(
