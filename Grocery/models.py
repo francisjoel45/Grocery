@@ -2,6 +2,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from decimal import Decimal
 
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -30,7 +31,7 @@ class Product(models.Model):
     
     @property
     def stock_value(self):
-        return self.quantity * self.buying_price
+        return Decimal(str(self.quantity)) * Decimal(str(self.buying_price))
 
 class Sale(models.Model):
     PAYMENT_CHOICES = [
@@ -55,7 +56,71 @@ class Sale(models.Model):
         if self.sale_datetime is None:
             self.sale_datetime = timezone.now()
         self.date_sold = self.sale_datetime
-        self.unit_price = self.product.selling_price
-        self.total_amount = self.unit_price * self.quantity
-        self.profit = (self.product.selling_price - self.product.buying_price) * self.quantity
+        self.unit_price = Decimal(str(self.product.selling_price))
+        quantity = Decimal(str(self.quantity))
+        self.total_amount = self.unit_price * quantity
+        self.profit = (self.unit_price - Decimal(str(self.product.buying_price))) * quantity
         super().save(*args, **kwargs)
+
+
+class Expense(models.Model):
+    CATEGORY_CHOICES = [
+        ('rent', 'Rent'),
+        ('utilities', 'Utilities'),
+        ('transport', 'Transport'),
+        ('salaries', 'Salaries'),
+        ('supplies', 'Supplies'),
+        ('maintenance', 'Maintenance'),
+        ('other', 'Other'),
+    ]
+
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
+    description = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    expense_date = models.DateField(default=timezone.localdate)
+    notes = models.TextField(blank=True)
+    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-expense_date', '-created_at']
+
+    def __str__(self):
+        return f'{self.get_category_display()} - {self.amount}'
+
+
+class StockPurchase(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
+    supplier = models.CharField(max_length=200, blank=True)
+    quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=2)
+    total_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    purchase_date = models.DateField(default=timezone.localdate)
+    notes = models.TextField(blank=True)
+    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-purchase_date', '-created_at']
+
+    def save(self, *args, **kwargs):
+        self.total_cost = Decimal(str(self.quantity)) * Decimal(str(self.unit_cost))
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'Stock purchase - {self.total_cost}'
+
+
+class Withdrawal(models.Model):
+    reason = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    withdrawal_date = models.DateField(default=timezone.localdate)
+    notes = models.TextField(blank=True)
+    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-withdrawal_date', '-created_at']
+
+    def __str__(self):
+        return f'{self.reason} - {self.amount}'

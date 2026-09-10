@@ -1,6 +1,6 @@
 # Grocery/admin.py
 from django.contrib import admin
-from .models import Category, Product, Sale
+from .models import Category, Product, Sale, Expense, StockPurchase, Withdrawal
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -26,3 +26,25 @@ class SaleAdmin(admin.ModelAdmin):
     list_filter = ['payment_method', 'sale_datetime', 'created_at']
     search_fields = ['product__name']
     readonly_fields = ['created_at', 'unit_price', 'total_amount', 'profit']
+
+
+@admin.register(Expense)
+class ExpenseAdmin(admin.ModelAdmin):
+    list_display = ['expense_date', 'category', 'description', 'amount', 'recorded_by']
+    list_filter = ['category', 'expense_date']
+    search_fields = ['description', 'notes']
+
+
+@admin.register(StockPurchase)
+class StockPurchaseAdmin(admin.ModelAdmin):
+    list_display = ['purchase_date', 'product', 'supplier', 'quantity', 'unit_cost', 'total_cost']
+    list_filter = ['purchase_date']
+    search_fields = ['supplier', 'notes', 'product__name']
+    readonly_fields = ['total_cost']
+
+
+@admin.register(Withdrawal)
+class WithdrawalAdmin(admin.ModelAdmin):
+    list_display = ['withdrawal_date', 'reason', 'amount', 'recorded_by']
+    list_filter = ['withdrawal_date']
+    search_fields = ['reason', 'notes']

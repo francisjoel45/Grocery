@@ -348,6 +348,18 @@
         .stat-icon.amber { background: #fef3c7; color: #b45309; }
         .stat-icon.red { background: #fee2e2; color: #b91c1c; }
         .stat-icon.purple { background: #ede9fe; color: #6d28d9; }
+        .finance-action {
+            display: flex; align-items: center; gap: 12px; padding: 16px;
+            background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+            color: var(--ink); text-decoration: none; box-shadow: var(--shadow-sm);
+            transition: transform .15s, box-shadow .15s;
+        }
+        .finance-action:hover { color: var(--brand); transform: translateY(-2px); box-shadow: var(--shadow); }
+        .finance-action > i:first-child { color: var(--brand); font-size: 1.35rem; }
+        .finance-action > i:last-child { margin-left: auto; color: var(--muted); }
+        .finance-action span { min-width: 0; }
+        .finance-action strong, .finance-action small { display: block; }
+        .finance-action small { color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* Alerts */
         .alert { border-radius: 12px; border: 1px solid transparent; }

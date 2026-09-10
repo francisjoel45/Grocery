@@ -40,6 +40,14 @@ urlpatterns = [
     path('reports/export-weekly-excel/', views.export_weekly_excel, name='export_weekly_excel'),
     path('reports/export-monthly-excel/', views.export_monthly_excel, name='export_monthly_excel'),
     path('reports/print/', views.print_report, name='print_report'),
+
+    # Finance
+    path('finance/', views.finance_dashboard, name='finance_dashboard'),
+    path('finance/expenses/add/', views.add_expense, name='add_expense'),
+    path('finance/stock-purchases/add/', views.add_stock_purchase, name='add_stock_purchase'),
+    path('finance/withdrawals/add/', views.add_withdrawal, name='add_withdrawal'),
+    path('finance/export/pdf/', views.export_finance_pdf, name='export_finance_pdf'),
+    path('finance/export/excel/', views.export_finance_excel, name='export_finance_excel'),
     
     # Settings
     path('settings/', views.settings_view, name='settings'),

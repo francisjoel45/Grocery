@@ -34,6 +34,14 @@
         href="{% url 'Grocery:reports' %}">
         <i class="bi bi-bar-chart-line"></i> Reports
     </a>
+    <a class="side-link {% if request.resolver_match.url_name == 'monthly_reports' %}active{% endif %}"
+        href="{% url 'Grocery:monthly_reports' %}">
+        <i class="bi bi-calendar3"></i> Monthly Reports
+    </a>
+    <a class="side-link {% if 'finance' in request.resolver_match.url_name %}active{% endif %}"
+        href="{% url 'Grocery:finance_dashboard' %}">
+        <i class="bi bi-piggy-bank"></i> Finance
+    </a>
     {% endif %}
 
     <div class="sidebar-heading">Account</div>

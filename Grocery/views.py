@@ -19,7 +19,7 @@ from django.http import Http404
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.views.decorators.cache import never_cache
 from django.core.paginator import Paginator
-from .models import Product, Category, Sale
+from .models import Product, Category, Sale, Expense, StockPurchase, Withdrawal, Expense, StockPurchase, Withdrawal
 from .forms import (
     ProductForm,
     CategoryForm,
@@ -27,6 +27,12 @@ from .forms import (
     CustomPasswordChangeForm,
     AdminUserCreationForm,
     AdminUserEditForm,
+    ExpenseForm,
+    StockPurchaseForm,
+    WithdrawalForm,
+    ExpenseForm,
+    StockPurchaseForm,
+    WithdrawalForm,
 )
 
 
@@ -150,7 +156,220 @@ def dashboard(request):
             'recent_sales': recent_sales,
         }
         return render(request, 'Grocery/dashboard.html', context)
+    return _standard_dashboard(request)
 
+
+def _finance_date_range(request):
+        today = timezone.localdate()
+        try:
+            start = datetime.strptime(request.GET.get('from_date', ''), '%Y-%m-%d').date()
+        except (TypeError, ValueError):
+            start = today.replace(day=1)
+        try:
+            end = datetime.strptime(request.GET.get('to_date', ''), '%Y-%m-%d').date()
+        except (TypeError, ValueError):
+            end = today
+        if start > end:
+            start, end = end, start
+        return start, end
+
+
+def _finance_summary(start, end):
+        sales = Sale.objects.filter(sale_datetime__date__gte=start, sale_datetime__date__lte=end)
+        expenses = Expense.objects.filter(expense_date__gte=start, expense_date__lte=end)
+        purchases = StockPurchase.objects.filter(purchase_date__gte=start, purchase_date__lte=end)
+        withdrawals = Withdrawal.objects.filter(withdrawal_date__gte=start, withdrawal_date__lte=end)
+        revenue = sales.aggregate(value=Sum('total_amount'))['value'] or Decimal('0')
+        gross_profit = sales.aggregate(value=Sum('profit'))['value'] or Decimal('0')
+        expense_total = expenses.aggregate(value=Sum('amount'))['value'] or Decimal('0')
+        purchase_total = purchases.aggregate(value=Sum('total_cost'))['value'] or Decimal('0')
+        withdrawal_total = withdrawals.aggregate(value=Sum('amount'))['value'] or Decimal('0')
+        return {
+            'revenue': revenue,
+            'gross_profit': gross_profit,
+            'expenses': expense_total,
+            'stock_investment': purchase_total,
+            'withdrawals': withdrawal_total,
+            'net_profit': gross_profit - expense_total,
+            'available_cash': revenue - expense_total - purchase_total - withdrawal_total,
+            'sales_count': sales.count(),
+        }
+
+
+@login_required
+@admin_required
+def finance_dashboard(request):
+        start, end = _finance_date_range(request)
+        summary = _finance_summary(start, end)
+        expenses = Expense.objects.filter(expense_date__gte=start, expense_date__lte=end)[:8]
+        purchases = StockPurchase.objects.select_related('product').filter(
+            purchase_date__gte=start, purchase_date__lte=end
+        )[:8]
+        withdrawals = Withdrawal.objects.filter(
+            withdrawal_date__gte=start, withdrawal_date__lte=end
+        )[:8]
+
+        month_rows = []
+        cursor = start.replace(day=1)
+        for _ in range(6):
+            if cursor > end.replace(day=1):
+                break
+            next_month = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+            row = _finance_summary(cursor, next_month - timedelta(days=1))
+            month_rows.append({
+                'label': cursor.strftime('%b'),
+                'revenue': float(row['revenue']),
+                'expenses': float(row['expenses'] + row['stock_investment']),
+                'profit': float(row['net_profit']),
+            })
+            cursor = next_month
+
+        return render(request, 'Grocery/finance_dashboard.html', {
+            'start_date': start.isoformat(),
+            'end_date': end.isoformat(),
+            'summary': summary,
+            'expenses': expenses,
+            'purchases': purchases,
+            'withdrawals': withdrawals,
+            'month_labels': [row['label'] for row in month_rows],
+            'month_revenue': [row['revenue'] for row in month_rows],
+            'month_expenses': [row['expenses'] for row in month_rows],
+            'month_profit': [row['profit'] for row in month_rows],
+            'finance_cards': [
+                ('Available cash', summary['available_cash'], 'text-success' if summary['available_cash'] >= 0 else 'text-danger', 'After stock & withdrawals'),
+                ('Net profit', summary['net_profit'], 'text-success' if summary['net_profit'] >= 0 else 'text-danger', 'After operating expenses'),
+                ('Gross profit', summary['gross_profit'], '', 'From sales margins'),
+                ('Total outflows', summary['expenses'] + summary['stock_investment'] + summary['withdrawals'], 'text-danger', 'Expenses + stock + withdrawals'),
+            ],
+            'expense_form': ExpenseForm(initial={'expense_date': timezone.localdate()}),
+            'purchase_form': StockPurchaseForm(initial={'purchase_date': timezone.localdate()}),
+            'withdrawal_form': WithdrawalForm(initial={'withdrawal_date': timezone.localdate()}),
+        })
+
+
+@login_required
+@admin_required
+def add_expense(request):
+        if request.method != 'POST':
+            return render(request, 'Grocery/finance_form.html', {'form': ExpenseForm(), 'title': 'Record expense', 'submit_label': 'Save expense'})
+        form = ExpenseForm(request.POST)
+        if form.is_valid():
+            expense = form.save(commit=False)
+            expense.recorded_by = request.user
+            expense.save()
+            messages.success(request, 'Expense recorded and finance totals updated.')
+        else:
+            messages.error(request, 'Please correct the expense details and try again.')
+        return redirect('Grocery:finance_dashboard')
+
+
+@login_required
+@admin_required
+def add_stock_purchase(request):
+        if request.method != 'POST':
+            return render(request, 'Grocery/finance_form.html', {'form': StockPurchaseForm(), 'title': 'Record stock investment', 'submit_label': 'Save investment'})
+        form = StockPurchaseForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                purchase = form.save(commit=False)
+                purchase.recorded_by = request.user
+                purchase.save()
+                product = Product.objects.select_for_update().get(pk=purchase.product_id)
+                product.quantity = F('quantity') + purchase.quantity
+                product.save(update_fields=['quantity'])
+        else:
+            messages.error(request, 'Please correct the stock purchase details and try again.')
+            return redirect('Grocery:finance_dashboard')
+        messages.success(request, 'Stock investment recorded and inventory increased.')
+        return redirect('Grocery:finance_dashboard')
+
+
+@login_required
+@admin_required
+def add_withdrawal(request):
+        if request.method != 'POST':
+            return render(request, 'Grocery/finance_form.html', {'form': WithdrawalForm(), 'title': 'Record withdrawal', 'submit_label': 'Save withdrawal'})
+        form = WithdrawalForm(request.POST)
+        if form.is_valid():
+            withdrawal = form.save(commit=False)
+            withdrawal.recorded_by = request.user
+            withdrawal.save()
+            messages.success(request, 'Withdrawal recorded and available cash updated.')
+        else:
+            messages.error(request, 'Please correct the withdrawal details and try again.')
+        return redirect('Grocery:finance_dashboard')
+
+
+def _finance_export_rows(start, end):
+        summary = _finance_summary(start, end)
+        rows = [['Finance report', f'{start} to {end}'], [], ['Metric', 'Amount (KSh)']]
+        rows += [
+            ['Sales revenue', summary['revenue']],
+            ['Gross profit', summary['gross_profit']],
+            ['Operating expenses', summary['expenses']],
+            ['Stock investment', summary['stock_investment']],
+            ['Withdrawals', summary['withdrawals']],
+            ['Net profit', summary['net_profit']],
+            ['Available cash', summary['available_cash']],
+            [],
+            ['Date', 'Type', 'Description', 'Amount (KSh)'],
+        ]
+        for item in Expense.objects.filter(expense_date__range=(start, end)):
+            rows.append([item.expense_date, 'Expense', item.description, item.amount])
+        for item in StockPurchase.objects.select_related('product').filter(purchase_date__range=(start, end)):
+            rows.append([item.purchase_date, 'Stock purchase', item.product.name, item.total_cost])
+        for item in Withdrawal.objects.filter(withdrawal_date__range=(start, end)):
+            rows.append([item.withdrawal_date, 'Withdrawal', item.description, item.amount])
+        return rows
+
+
+@login_required
+@admin_required
+def export_finance_excel(request):
+        start, end = _finance_date_range(request)
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="finance-{start}-to-{end}.csv"'
+        writer = csv.writer(response)
+        for row in _finance_export_rows(start, end):
+            writer.writerow(row)
+        return response
+
+
+@login_required
+@admin_required
+def export_finance_pdf(request):
+        start, end = _finance_date_range(request)
+        summary = _finance_summary(start, end)
+        buffer = io.BytesIO()
+        document = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+        styles = getSampleStyleSheet()
+        elements = [
+            Paragraph(f'Finance Report: {start} to {end}', styles['Title']),
+            Spacer(1, 12),
+        ]
+        summary_rows = [['Metric', 'Amount (KSh)']] + [
+            [label, f'{summary[key]:,.2f}'] for label, key in [
+                ('Sales revenue', 'revenue'), ('Gross profit', 'gross_profit'),
+                ('Operating expenses', 'expenses'), ('Stock investment', 'stock_investment'),
+                ('Withdrawals', 'withdrawals'), ('Net profit', 'net_profit'),
+                ('Available cash', 'available_cash'),
+            ]
+        ]
+        table = Table(summary_rows, colWidths=[300, 170])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a4d2e')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#d9e5dd')),
+            ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
+            ('PADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(table)
+        document.build(elements)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="finance-{start}-to-{end}.pdf"'
+        return response
+
+def _standard_dashboard(request):
     products = Product.objects.all()
     total_products = products.count()
     total_stock_items = sum(p.quantity for p in products)
@@ -1090,4 +1309,232 @@ def print_report(request):
     
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="report.pdf"'
+    return response
+
+
+def _finance_dates(request):
+    today = timezone.localdate()
+    default_start = today.replace(day=1)
+    try:
+        start = datetime.strptime(request.GET.get('start') or request.GET.get('from_date', ''), '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        start = default_start
+    try:
+        end = datetime.strptime(request.GET.get('end') or request.GET.get('to_date', ''), '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        end = today
+    if start > end:
+        start, end = end, start
+    return start, end
+
+
+def _finance_data(start, end):
+    sales = Sale.objects.filter(sale_datetime__date__range=(start, end))
+    expenses = Expense.objects.filter(expense_date__range=(start, end))
+    purchases = StockPurchase.objects.filter(purchase_date__range=(start, end))
+    withdrawals = Withdrawal.objects.filter(withdrawal_date__range=(start, end))
+    sales_totals = sales.aggregate(revenue=Sum('total_amount'), gross_profit=Sum('profit'))
+    expense_total = expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    stock_total = purchases.aggregate(total=Sum('total_cost'))['total'] or Decimal('0')
+    withdrawal_total = withdrawals.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    revenue = sales_totals['revenue'] or Decimal('0')
+    gross_profit = sales_totals['gross_profit'] or Decimal('0')
+    net_profit = gross_profit - expense_total
+    available_cash = revenue - expense_total - stock_total - withdrawal_total
+    return {
+        'sales': sales,
+        'expenses': expenses,
+        'purchases': purchases,
+        'withdrawals': withdrawals,
+        'revenue': revenue,
+        'gross_profit': gross_profit,
+        'expense_total': expense_total,
+        'stock_total': stock_total,
+        'withdrawal_total': withdrawal_total,
+        'net_profit': net_profit,
+        'available_cash': available_cash,
+    }
+
+
+def _finance_access(request):
+    if is_shop_attendant(request.user):
+        messages.error(request, 'Finance is available to managers and administrators only.')
+        return redirect('Grocery:dashboard')
+    return None
+
+
+@login_required
+def finance_dashboard(request):
+    access_response = _finance_access(request)
+    if access_response:
+        return access_response
+    start, end = _finance_dates(request)
+    data = _finance_data(start, end)
+    daily_sales = {
+        row['sale_datetime__date']: float(row['total'] or 0)
+        for row in data['sales'].values('sale_datetime__date').annotate(total=Sum('total_amount'))
+    }
+    chart_labels = []
+    chart_sales = []
+    cursor = start
+    while cursor <= end and len(chart_labels) < 31:
+        chart_labels.append(cursor.strftime('%d %b'))
+        chart_sales.append(daily_sales.get(cursor, 0))
+        cursor += timedelta(days=1)
+    expense_breakdown = list(
+        data['expenses'].values('category').annotate(total=Sum('amount')).order_by('-total')
+    )
+    return render(request, 'Grocery/finance_dashboard.html', {
+        **data,
+        'start': start,
+        'end': end,
+        'chart_labels': chart_labels,
+        'chart_sales': chart_sales,
+        'expense_labels': [dict(Expense.CATEGORY_CHOICES).get(row['category'], row['category']) for row in expense_breakdown],
+        'expense_data': [float(row['total'] or 0) for row in expense_breakdown],
+        'recent_expenses': data['expenses'][:6],
+        'recent_purchases': data['purchases'][:6],
+        'recent_withdrawals': data['withdrawals'][:6],
+        'finance_cards': [
+            ('Available cash', data['available_cash'], 'text-success' if data['available_cash'] >= 0 else 'text-danger', 'After stock & withdrawals'),
+            ('Net profit', data['net_profit'], 'text-success' if data['net_profit'] >= 0 else 'text-danger', 'After operating expenses'),
+            ('Gross profit', data['gross_profit'], '', 'From sales margins'),
+            ('Total outflows', data['expense_total'] + data['stock_total'] + data['withdrawal_total'], 'text-danger', 'Expenses + stock + withdrawals'),
+        ],
+    })
+
+
+@login_required
+def add_expense(request):
+    access_response = _finance_access(request)
+    if access_response:
+        return access_response
+    form = ExpenseForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        expense = form.save(commit=False)
+        expense.recorded_by = request.user
+        expense.save()
+        messages.success(request, 'Expense recorded. Finance totals updated.')
+        return redirect('Grocery:finance_dashboard')
+    return render(request, 'Grocery/finance_form.html', {'form': form, 'title': 'Record Expense', 'icon': 'bi-receipt-cutoff'})
+
+
+@login_required
+def add_stock_purchase(request):
+    access_response = _finance_access(request)
+    if access_response:
+        return access_response
+    form = StockPurchaseForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        with transaction.atomic():
+            purchase = form.save(commit=False)
+            purchase.recorded_by = request.user
+            purchase.save()
+            if purchase.product_id:
+                product = Product.objects.select_for_update().get(pk=purchase.product_id)
+                product.quantity = F('quantity') + purchase.quantity
+                product.save(update_fields=['quantity'])
+        messages.success(request, 'Stock investment recorded. Available cash updated.')
+        return redirect('Grocery:finance_dashboard')
+    return render(request, 'Grocery/finance_form.html', {'form': form, 'title': 'Record Stock Investment', 'icon': 'bi-box-seam'})
+
+
+@login_required
+def add_withdrawal(request):
+    access_response = _finance_access(request)
+    if access_response:
+        return access_response
+    form = WithdrawalForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        withdrawal = form.save(commit=False)
+        withdrawal.recorded_by = request.user
+        withdrawal.save()
+        messages.success(request, 'Withdrawal recorded. Available cash updated.')
+        return redirect('Grocery:finance_dashboard')
+    return render(request, 'Grocery/finance_form.html', {'form': form, 'title': 'Record Withdrawal', 'icon': 'bi-arrow-down-right-circle'})
+
+
+def _finance_export_data(request):
+    start, end = _finance_dates(request)
+    return start, end, _finance_data(start, end)
+
+
+@login_required
+def export_finance_excel(request):
+    access_response = _finance_access(request)
+    if access_response:
+        return access_response
+    start, end, data = _finance_export_data(request)
+    response = HttpResponse(content_type='application/vnd.ms-excel')
+    response['Content-Disposition'] = f'attachment; filename="finance-{start:%Y%m%d}-{end:%Y%m%d}.xls"'
+    rows = [
+        ('Finance report', f'{start:%d %b %Y} - {end:%d %b %Y}'),
+        ('Sales revenue', data['revenue']),
+        ('Gross profit', data['gross_profit']),
+        ('Expenses', data['expense_total']),
+        ('Stock investment', data['stock_total']),
+        ('Withdrawals', data['withdrawal_total']),
+        ('Net profit', data['net_profit']),
+        ('Available cash', data['available_cash']),
+        (),
+        ('Date', 'Type', 'Description', 'Amount'),
+    ]
+    for item in data['expenses']:
+        rows.append((item.expense_date, 'Expense', item.description, item.amount))
+    for item in data['purchases']:
+        rows.append((item.purchase_date, 'Stock investment', item.product.name if item.product else item.supplier, item.total_cost))
+    for item in data['withdrawals']:
+        rows.append((item.withdrawal_date, 'Withdrawal', item.reason, item.amount))
+    html = ['<table>', *[f'<tr>{"".join(f"<td>{value}</td>" for value in row)}</tr>' for row in rows], '</table>']
+    response.write(''.join(html))
+    return response
+
+
+@login_required
+def export_finance_pdf(request):
+    access_response = _finance_access(request)
+    if access_response:
+        return access_response
+    start, end, data = _finance_export_data(request)
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), rightMargin=24, leftMargin=24)
+    styles = getSampleStyleSheet()
+    elements = [
+        Paragraph('Cereal Heaven - Finance Report', styles['Title']),
+        Paragraph(f'{start:%d %b %Y} to {end:%d %b %Y}', styles['Normal']),
+        Spacer(1, 12),
+    ]
+    summary = [
+        ['Sales revenue', 'Gross profit', 'Expenses', 'Stock investment', 'Withdrawals', 'Net profit', 'Available cash'],
+        [format_currency(data['revenue']), format_currency(data['gross_profit']), format_currency(data['expense_total']),
+         format_currency(data['stock_total']), format_currency(data['withdrawal_total']),
+         format_currency(data['net_profit']), format_currency(data['available_cash'])],
+    ]
+    summary_table = Table(summary)
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.darkgreen),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.lightgrey),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 14))
+    detail_rows = [['Date', 'Type', 'Description', 'Amount']]
+    detail_rows += [[item.expense_date.strftime('%d %b %Y'), 'Expense', item.description, format_currency(item.amount)] for item in data['expenses']]
+    detail_rows += [[item.purchase_date.strftime('%d %b %Y'), 'Stock investment', item.product.name if item.product else item.supplier, format_currency(item.total_cost)] for item in data['purchases']]
+    detail_rows += [[item.withdrawal_date.strftime('%d %b %Y'), 'Withdrawal', item.reason, format_currency(item.amount)] for item in data['withdrawals']]
+    detail_table = Table(detail_rows, repeatRows=1, colWidths=[90, 100, 300, 100])
+    detail_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e8f3ec')),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.lightgrey),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(detail_table)
+    doc.build(elements)
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="finance-{start:%Y%m%d}-{end:%Y%m%d}.pdf"'
     return response

@@ -5,7 +5,7 @@ from django.contrib.auth.models import Group, User
 from django.utils import timezone
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column, Field
-from .models import Product, Category, Sale
+from .models import Product, Category, Sale, Expense, StockPurchase, Withdrawal, Expense, StockPurchase, Withdrawal
 
 SHOP_ATTENDANT_GROUP_NAME = 'Shop Attendant'
 USER_ROLE_CHOICES = (
@@ -194,6 +194,52 @@ class SaleForm(forms.ModelForm):
             cleaned_data['sale_datetime'] = timezone.now()
 
         return cleaned_data
+
+
+class FinanceFormMixin:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_method = 'post'
+
+
+class ExpenseForm(FinanceFormMixin, forms.ModelForm):
+    class Meta:
+        model = Expense
+        fields = ['category', 'description', 'amount', 'expense_date', 'notes']
+        widgets = {
+            'category': forms.Select(attrs={'class': 'form-select'}),
+            'description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Electricity bill'}),
+            'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
+            'expense_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+
+
+class StockPurchaseForm(FinanceFormMixin, forms.ModelForm):
+    class Meta:
+        model = StockPurchase
+        fields = ['product', 'supplier', 'quantity', 'unit_cost', 'purchase_date', 'notes']
+        widgets = {
+            'product': forms.Select(attrs={'class': 'form-select'}),
+            'supplier': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Optional supplier'}),
+            'quantity': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'unit_cost': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
+            'purchase_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+
+
+class WithdrawalForm(FinanceFormMixin, forms.ModelForm):
+    class Meta:
+        model = Withdrawal
+        fields = ['reason', 'amount', 'withdrawal_date', 'notes']
+        widgets = {
+            'reason': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Owner draw'}),
+            'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
+            'withdrawal_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
 
 class CustomPasswordChangeForm(PasswordChangeForm):
     def __init__(self, *args, **kwargs):

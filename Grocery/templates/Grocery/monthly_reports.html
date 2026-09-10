@@ -1,0 +1,75 @@
+{% extends 'Grocery/base.html' %}
+
+{% block page_title %}Monthly Reports{% endblock %}
+
+{% block content %}
+<style>
+    .monthly-hero {
+        background: linear-gradient(135deg, #153d27, #3d8a5c);
+        border-radius: 18px;
+        color: #fff;
+        padding: 28px 30px;
+        margin-bottom: 24px;
+    }
+    .monthly-hero h2 { color: #fff; margin-bottom: 6px; }
+    .monthly-hero p { color: rgba(255,255,255,.78); margin: 0; }
+    .summary-card { border: 1px solid #e8edf0; border-radius: 14px; padding: 20px; background: #fff; height: 100%; }
+    .summary-card small { color: #718096; }
+    .summary-card h3 { color: #183b28; margin: 6px 0 0; }
+    .month-card { border: 1px solid #e8edf0; border-radius: 14px; background: #fff; overflow: hidden; }
+    .month-card-header { padding: 18px 20px; background: #f0f6f2; color: #183b28; }
+    .month-card-header h5 { margin: 0; font-weight: 700; }
+    .month-card-body { padding: 20px; }
+    .month-metric { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #eef1f2; }
+    .month-metric:last-of-type { border-bottom: 0; }
+    .month-metric span:first-child { color: #718096; }
+    .month-metric strong { color: #183b28; }
+    .month-actions { display: flex; gap: 8px; margin-top: 18px; }
+    @media (max-width: 576px) { .month-actions .btn { flex: 1; } }
+</style>
+
+<div class="monthly-hero d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+        <h2><i class="bi bi-calendar3 me-2"></i>Monthly Reports</h2>
+        <p>Every sale stays safely in the database while this view summarizes performance by month.</p>
+    </div>
+    <span class="badge rounded-pill bg-light text-success px-3 py-2">
+        <i class="bi bi-file-earmark-bar-graph me-1"></i> PDF &amp; CSV ready for Excel
+    </span>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="summary-card"><small>Total sales</small><h3>KSh {{ all_time_total_sales|floatformat:2 }}</h3></div></div>
+    <div class="col-md-4"><div class="summary-card"><small>Total profit</small><h3>KSh {{ all_time_total_profit|floatformat:2 }}</h3></div></div>
+    <div class="col-md-4"><div class="summary-card"><small>Transactions</small><h3>{{ all_time_transaction_count }}</h3></div></div>
+</div>
+
+<div class="row g-4">
+    {% for report in monthly_reports %}
+    <div class="col-xl-6">
+        <div class="month-card h-100">
+            <div class="month-card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-calendar-month me-2"></i>{{ report.month|date:"F Y" }}</h5>
+                <span class="badge bg-success-subtle text-success">{{ report.transaction_count }} transaction{{ report.transaction_count|pluralize }}</span>
+            </div>
+            <div class="month-card-body">
+                <div class="month-metric"><span>Total sales</span><strong>KSh {{ report.total_sales|floatformat:2 }}</strong></div>
+                <div class="month-metric"><span>Total profit</span><strong class="text-success">KSh {{ report.total_profit|floatformat:2 }}</strong></div>
+                <div class="month-actions">
+                    <a class="btn btn-outline-danger btn-sm" href="{% url 'Grocery:monthly_report_pdf' report.month|date:'Y-m' %}">
+                        <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
+                    </a>
+                    <a class="btn btn-outline-success btn-sm" href="{% url 'Grocery:monthly_report_csv' report.month|date:'Y-m' %}">
+                        <i class="bi bi-filetype-csv me-1"></i> Download CSV for Excel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12"><div class="card"><div class="card-body text-center text-muted py-5">
+        <i class="bi bi-calendar-x fs-1 d-block mb-3"></i>No sales have been recorded yet.
+    </div></div></div>
+    {% endfor %}
+</div>
+{% endblock %}
