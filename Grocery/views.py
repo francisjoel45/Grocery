@@ -1,6 +1,10 @@
 # Grocery/views.py (updated with CSRF protection)
 import os
 import secrets
+import json
+import shutil
+import subprocess
+import tempfile
 from functools import wraps
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
@@ -9,7 +13,11 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.models import User
 from django.contrib.auth import update_session_auth_hash
 from django.contrib import messages
-from django.db import transaction
+from django.db import DatabaseError, transaction
+from django.apps import apps
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.core.serializers.base import DeserializationError
 from django.db.models import Sum, Count, Q, F
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
@@ -31,6 +39,7 @@ from .forms import (
     StockPurchaseForm,
     WithdrawalForm,
     SalesImportForm,
+    DataRestoreForm,
     ExpenseForm,
     StockPurchaseForm,
     WithdrawalForm,
@@ -1086,7 +1095,13 @@ def export_monthly_report_csv(request, month):
 
 @login_required
 def settings_view(request):
-    return render(request, 'Grocery/settings.html')
+    from django.conf import settings as dj_settings
+
+    database_engine = dj_settings.DATABASES.get('default', {}).get('ENGINE', '')
+    return render(request, 'Grocery/settings.html', {
+        'supports_postgres_backup': 'postgresql' in database_engine or 'postgis' in database_engine,
+        'restore_form': DataRestoreForm(),
+    })
 
 @login_required
 def change_password(request):
@@ -1400,36 +1415,86 @@ def export_users(request):
 @login_required
 @admin_required
 def export_database(request):
-    """Download the raw SQLite database file (admin only)."""
+    """Download a PostgreSQL SQL dump (admin only)."""
     from django.conf import settings as dj_settings
-    from django.http import FileResponse
 
     default_db = dj_settings.DATABASES.get('default', {})
     engine = default_db.get('ENGINE', '')
-    if 'sqlite' not in engine:
-        messages.error(request, 'Direct database download is only available when the app uses SQLite.')
+    if 'postgresql' not in engine and 'postgis' not in engine:
+        messages.error(request, 'A PostgreSQL backup is available only when the app is connected to PostgreSQL.')
         return redirect('Grocery:settings')
 
-    db_path = default_db.get('NAME')
-    if not db_path or not os.path.exists(db_path):
-        messages.error(request, 'Database file was not found on the server.')
+    pg_dump_path = shutil.which('pg_dump')
+    if not pg_dump_path:
+        messages.error(
+            request,
+            'PostgreSQL backup could not be created because pg_dump is not installed on the app server. '
+            'Use your hosting provider’s PostgreSQL backup tools, or download the portable JSON backup.',
+        )
         return redirect('Grocery:settings')
 
-    filename = f"cereal-heaven-backup-{timezone.localdate().strftime('%Y%m%d')}.sqlite3"
-    return FileResponse(open(db_path, 'rb'), as_attachment=True, filename=filename)
+    options = default_db.get('OPTIONS', {})
+    environment = os.environ.copy()
+    environment.update({
+        'PGHOST': str(default_db.get('HOST') or 'localhost'),
+        'PGPORT': str(default_db.get('PORT') or '5432'),
+        'PGDATABASE': str(default_db.get('NAME') or ''),
+        'PGUSER': str(default_db.get('USER') or ''),
+        'PGCONNECT_TIMEOUT': str(options.get('connect_timeout', 15)),
+    })
+    if default_db.get('PASSWORD'):
+        environment['PGPASSWORD'] = str(default_db['PASSWORD'])
+    for option in ('sslmode', 'sslcert', 'sslkey', 'sslrootcert'):
+        if options.get(option):
+            environment[f'PG{option.upper()}'] = str(options[option])
+
+    try:
+        result = subprocess.run(
+            [
+                pg_dump_path,
+                '--no-owner',
+                '--no-privileges',
+                '--format=plain',
+                '--encoding=UTF8',
+            ],
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=120,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        messages.error(
+            request,
+            'PostgreSQL backup failed while running pg_dump. Try again or use your hosting provider’s backup tools.',
+        )
+        return redirect('Grocery:settings')
+
+    if result.returncode != 0:
+        messages.error(
+            request,
+            'PostgreSQL backup failed to connect or export the database. '
+            'Check the database connection and use your hosting provider’s backup tools if needed.',
+        )
+        return redirect('Grocery:settings')
+
+    filename = f"cereal-heaven-postgres-backup-{timezone.localdate().strftime('%Y%m%d')}.sql"
+    response = HttpResponse(result.stdout, content_type='application/sql; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 
 @login_required
 @admin_required
 def export_data_json(request):
     """Portable data-only backup (works on any database engine)."""
-    from django.core.management import call_command
     from io import StringIO
     buffer = StringIO()
     call_command(
         'dumpdata',
         '--natural-primary', '--natural-foreign',
         '--exclude=contenttypes', '--exclude=auth.Permission',
+        '--exclude=sessions',
         '--indent=2',
         stdout=buffer,
     )
@@ -1437,6 +1502,103 @@ def export_data_json(request):
     filename = f"cereal-heaven-data-{timezone.localdate().strftime('%Y%m%d')}.json"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
+
+
+@login_required
+@admin_required
+def restore_data_json(request):
+    if request.method != 'POST':
+        return redirect('Grocery:settings')
+
+    form = DataRestoreForm(request.POST, request.FILES)
+    errors = []
+    if form.is_valid():
+        try:
+            backup_contents = form.cleaned_data['file'].read().decode('utf-8-sig')
+            fixture = json.loads(backup_contents)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            errors.append('The uploaded file is not a valid UTF-8 JSON backup.')
+        else:
+            allowed_models = {
+                'auth.user',
+                'auth.group',
+                'admin.logentry',
+            }
+            allowed_models.update(
+                model._meta.label_lower.lower()
+                for model in apps.get_app_config('Grocery').get_models()
+            )
+            if not isinstance(fixture, list) or not fixture:
+                errors.append('The backup must contain a non-empty list of data records.')
+            elif len(fixture) > 100000:
+                errors.append('The backup contains too many records to restore safely.')
+            else:
+                for index, item in enumerate(fixture, start=1):
+                    if (
+                        not isinstance(item, dict)
+                        or not isinstance(item.get('model'), str)
+                        or item['model'].lower() not in allowed_models
+                        or not isinstance(item.get('fields'), dict)
+                    ):
+                        errors.append(
+                            f'Record {index} references an unsupported data model.'
+                        )
+                        break
+
+            if not errors:
+                try:
+                    with tempfile.TemporaryDirectory(prefix='grocery-restore-') as temp_dir:
+                        fixture_path = os.path.join(temp_dir, 'backup.json')
+                        with open(fixture_path, 'w', encoding='utf-8') as fixture_file:
+                            fixture_file.write(backup_contents)
+                        with transaction.atomic():
+                            call_command(
+                                'flush',
+                                interactive=False,
+                                database='default',
+                                verbosity=0,
+                            )
+                            call_command(
+                                'loaddata',
+                                fixture_path,
+                                database='default',
+                                verbosity=0,
+                            )
+                except (CommandError, DeserializationError, DatabaseError, ValueError) as exc:
+                    errors.append(
+                        'The backup could not be restored. No changes were kept. '
+                        'Check that it was created by this application and matches its data format.'
+                    )
+
+    if errors or not form.is_valid():
+        if not errors:
+            errors = [
+                error
+                for field_errors in form.errors.values()
+                for error in field_errors
+            ]
+        from django.conf import settings as dj_settings
+
+        return render(request, 'Grocery/settings.html', {
+            'supports_postgres_backup': (
+                'postgresql' in dj_settings.DATABASES.get('default', {}).get('ENGINE', '')
+                or 'postgis' in dj_settings.DATABASES.get('default', {}).get('ENGINE', '')
+            ),
+            'restore_form': form,
+            'restore_errors': errors,
+        })
+
+    request.session.flush()
+    from django.conf import settings as dj_settings
+
+    return render(request, 'Grocery/settings.html', {
+        'supports_postgres_backup': (
+            'postgresql' in dj_settings.DATABASES.get('default', {}).get('ENGINE', '')
+            or 'postgis' in dj_settings.DATABASES.get('default', {}).get('ENGINE', '')
+        ),
+        'restore_form': DataRestoreForm(),
+        'restore_completed': True,
+    })
 
 
 @login_required

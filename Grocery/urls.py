@@ -66,4 +66,5 @@ urlpatterns = [
     # Admin backups
     path('settings/export-database/', views.export_database, name='export_database'),
     path('settings/export-data/', views.export_data_json, name='export_data_json'),
+    path('settings/restore-data/', views.restore_data_json, name='restore_data_json'),
 ]

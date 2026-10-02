@@ -214,6 +214,28 @@ class SalesImportForm(forms.Form):
         return uploaded_file
 
 
+class DataRestoreForm(forms.Form):
+    file = forms.FileField(
+        label='Portable data backup (JSON)',
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.json,application/json',
+        }),
+    )
+    confirm_restore = forms.BooleanField(
+        required=True,
+        label='I understand this replaces the current users and business data.',
+    )
+
+    def clean_file(self):
+        uploaded_file = self.cleaned_data['file']
+        if not uploaded_file.name.lower().endswith('.json'):
+            raise forms.ValidationError('Upload a portable backup in .json format.')
+        if uploaded_file.size > 25 * 1024 * 1024:
+            raise forms.ValidationError('The JSON backup must be 25 MB or smaller.')
+        return uploaded_file
+
+
 class FinanceFormMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

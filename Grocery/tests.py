@@ -1,8 +1,10 @@
 import csv
 from io import StringIO
-from django.contrib.auth.models import User
+from unittest.mock import patch
+from django.contrib.auth.models import Group, Permission, User
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 from decimal import Decimal
 
@@ -228,3 +230,169 @@ class SalesExcelImportTests(TestCase):
             'attachment; filename="sales_import_template.pdf"',
             response['Content-Disposition'],
         )
+
+
+class DataBackupRestoreTests(TransactionTestCase):
+    reset_sequences = True
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='backup-admin',
+            password='test-password',
+            is_staff=True,
+        )
+        self.product = Product.objects.create(
+            name='Rice',
+            buying_price=Decimal('80.00'),
+            selling_price=Decimal('100.00'),
+            quantity=Decimal('50.00'),
+        )
+        self.client.force_login(self.user)
+
+    def test_settings_show_postgresql_backup_for_postgresql(self):
+        with patch.dict(
+            settings.DATABASES['default'],
+            {'ENGINE': 'django.db.backends.postgresql'},
+        ):
+            response = self.client.get(reverse('Grocery:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Download PostgreSQL Backup (.sql)')
+        self.assertNotContains(response, 'Download SQLite File')
+
+    def test_postgresql_backup_download_returns_pg_dump_output(self):
+        fake_dump = type('DumpResult', (), {
+            'returncode': 0,
+            'stdout': b'-- PostgreSQL database dump\\n',
+            'stderr': b'',
+        })()
+        database_config = settings.DATABASES['default']
+        with patch.dict(database_config, {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'grocery_db',
+            'USER': 'grocery_user',
+            'PASSWORD': 'db-secret',
+            'HOST': 'database.example',
+            'PORT': '5432',
+            'OPTIONS': {'sslmode': 'require'},
+        }):
+            with patch('Grocery.views.shutil.which', return_value='pg_dump.exe'):
+                with patch('Grocery.views.subprocess.run', return_value=fake_dump) as run_dump:
+                    response = self.client.get(reverse('Grocery:export_database'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/sql; charset=utf-8')
+        self.assertIn('cereal-heaven-postgres-backup-', response['Content-Disposition'])
+        self.assertTrue(response['Content-Disposition'].endswith('.sql"'))
+        self.assertEqual(response.content, fake_dump.stdout)
+        args, kwargs = run_dump.call_args
+        self.assertEqual(args[0][0], 'pg_dump.exe')
+        self.assertEqual(kwargs['env']['PGHOST'], 'database.example')
+        self.assertEqual(kwargs['env']['PGDATABASE'], 'grocery_db')
+        self.assertEqual(kwargs['env']['PGPASSWORD'], 'db-secret')
+        self.assertEqual(kwargs['env']['PGSSLMODE'], 'require')
+        self.assertNotIn('db-secret', args[0])
+
+    def test_postgresql_backup_reports_missing_pg_dump(self):
+        with patch.dict(
+            settings.DATABASES['default'],
+            {'ENGINE': 'django.db.backends.postgresql'},
+        ):
+            with patch('Grocery.views.shutil.which', return_value=None):
+                response = self.client.get(reverse('Grocery:export_database'), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'pg_dump is not installed')
+
+    def test_admin_can_download_and_restore_portable_data_backup(self):
+        attendant_group, _ = Group.objects.get_or_create(name='Shop Attendant')
+        sale_permission = Permission.objects.get(
+            codename='add_sale',
+            content_type__app_label='Grocery',
+        )
+        attendant_group.permissions.add(sale_permission)
+        self.user.groups.add(attendant_group)
+
+        backup_response = self.client.get(reverse('Grocery:export_data_json'))
+        self.assertEqual(backup_response.status_code, 200)
+        self.assertEqual(backup_response['Content-Type'], 'application/json')
+
+        self.product.name = 'Changed after backup'
+        self.product.save(update_fields=['name'])
+        Product.objects.create(
+            name='New item',
+            buying_price='10.00',
+            selling_price='20.00',
+            quantity='3.00',
+        )
+        backup_file = SimpleUploadedFile(
+            'cereal-heaven-data.json',
+            backup_response.content,
+            content_type='application/json',
+        )
+
+        response = self.client.post(
+            reverse('Grocery:restore_data_json'),
+            {'file': backup_file, 'confirm_restore': 'on'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context.get('restore_errors'), response.context.get('restore_errors'))
+        self.assertContains(response, 'Backup restored successfully')
+        self.assertEqual(Product.objects.count(), 1)
+        self.assertTrue(Product.objects.filter(name='Rice', quantity='50.00').exists())
+        self.assertTrue(User.objects.filter(username='backup-admin').exists())
+        self.assertTrue(
+            User.objects.get(username='backup-admin').groups.filter(name='Shop Attendant').exists()
+        )
+        self.assertFalse(Product.objects.filter(name='New item').exists())
+
+    def test_restore_requires_explicit_confirmation(self):
+        backup_file = SimpleUploadedFile(
+            'backup.json',
+            b'[]',
+            content_type='application/json',
+        )
+
+        response = self.client.post(
+            reverse('Grocery:restore_data_json'),
+            {'file': backup_file},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'This field is required')
+        self.assertEqual(Product.objects.count(), 1)
+
+    def test_invalid_backup_does_not_change_existing_data(self):
+        backup_file = SimpleUploadedFile(
+            'broken.json',
+            b'not json',
+            content_type='application/json',
+        )
+
+        response = self.client.post(
+            reverse('Grocery:restore_data_json'),
+            {'file': backup_file, 'confirm_restore': 'on'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'not a valid UTF-8 JSON backup')
+        self.assertEqual(Product.objects.count(), 1)
+        self.assertTrue(Product.objects.filter(name='Rice').exists())
+
+    def test_failed_fixture_load_rolls_back_the_data_flush(self):
+        backup_file = SimpleUploadedFile(
+            'invalid-record.json',
+            b'[{"model":"grocery.product","pk":1,"fields":{"not_a_field":"value"}}]',
+            content_type='application/json',
+        )
+
+        response = self.client.post(
+            reverse('Grocery:restore_data_json'),
+            {'file': backup_file, 'confirm_restore': 'on'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No changes were kept')
+        self.assertEqual(Product.objects.count(), 1)
+        self.assertTrue(Product.objects.filter(name='Rice').exists())

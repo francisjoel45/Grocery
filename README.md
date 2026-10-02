@@ -8,6 +8,7 @@ A Django-based grocery inventory and sales management system for tracking produc
 - Stock tracking in kilograms, including decimal quantities
 - Sales recording with Cash and M-Pesa payment methods
 - Bulk sale recording from Excel-compatible `.csv` files using a downloadable template
+- Admin-only portable JSON data backups with transactional restore from Settings
 - Automatic sales totals and profit calculations
 - Transactions page with payment-method summaries
 - Weekly and monthly business reports
@@ -114,6 +115,17 @@ python manage.py createsuperuser
 ## Currency and timezone
 
 The system uses Kenyan shillings (`KSh`) and the `Africa/Nairobi` timezone.
+
+## Data backups and recovery
+
+Administrators can download a portable JSON data backup from **Settings > Backups**.
+On PostgreSQL deployments, the settings page also offers a full `.sql` database dump
+created by PostgreSQL's `pg_dump` utility. The utility must be installed on the app server;
+if it is unavailable, use the hosting provider's PostgreSQL backup tools or the portable
+JSON data backup to restore application data.
+Restoring JSON replaces existing users and business records, requires explicit confirmation,
+and signs the administrator out after a successful restore. Download and keep a recent backup
+before restoring.
 
 ## Notes
 
