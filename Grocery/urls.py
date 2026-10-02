@@ -25,6 +25,9 @@ urlpatterns = [
     # Sales
     path('sales/', views.sales_list, name='sales_list'),
     path('sales/add/', views.add_sale, name='add_sale'),
+    path('sales/import/', views.import_sales, name='import_sales'),
+    path('sales/import/template/', views.sales_import_template, name='sales_import_template'),
+    path('sales/import/template.pdf', views.sales_import_template_pdf, name='sales_import_template_pdf'),
     path('sales/edit/<int:pk>/', views.edit_sale, name='edit_sale'),
     path('sales/delete/<int:pk>/', views.delete_sale, name='delete_sale'),
     path('transactions/', views.transactions, name='transactions'),

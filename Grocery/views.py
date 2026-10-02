@@ -30,10 +30,12 @@ from .forms import (
     ExpenseForm,
     StockPurchaseForm,
     WithdrawalForm,
+    SalesImportForm,
     ExpenseForm,
     StockPurchaseForm,
     WithdrawalForm,
 )
+from .sales_import import SalesImportError, parse_sales_csv
 
 
 def is_admin(user):
@@ -617,6 +619,7 @@ def transactions(request):
 @login_required
 @shop_attendant_required
 def add_sale(request):
+    import_form = SalesImportForm()
     if request.method == 'POST':
         form = SaleForm(request.POST)
         if form.is_valid():
@@ -636,9 +639,185 @@ def add_sale(request):
                 f'Sale recorded successfully! Profit: {format_currency(sale.profit)}'
             )
             return redirect('Grocery:sales_list')
+        import_form = SalesImportForm()
     else:
         form = SaleForm()
-    return render(request, 'Grocery/sale_form.html', {'form': form})
+    return render(request, 'Grocery/sale_form.html', {
+        'form': form,
+        'import_form': import_form,
+    })
+
+
+@login_required
+@shop_attendant_required
+def import_sales(request):
+    if request.method != 'POST':
+        return redirect('Grocery:add_sale')
+
+    form = SalesImportForm(request.POST, request.FILES)
+    import_errors = []
+    imported_count = 0
+    if form.is_valid():
+        try:
+            imported_sales = parse_sales_csv(form.cleaned_data['file'])
+            with transaction.atomic():
+                products = list(Product.objects.select_for_update().all())
+                products_by_name = {}
+                for product in products:
+                    products_by_name.setdefault(product.name.strip().casefold(), []).append(product)
+
+                resolved_sales = []
+                quantities_by_product = {}
+                for imported_sale in imported_sales:
+                    matches = products_by_name.get(imported_sale.product_name.casefold(), [])
+                    if not matches:
+                        import_errors.append(
+                            f'Row {imported_sale.row_number}: product "{imported_sale.product_name}" was not found.'
+                        )
+                        continue
+                    if len(matches) > 1:
+                        import_errors.append(
+                            f'Row {imported_sale.row_number}: product name "{imported_sale.product_name}" is ambiguous; '
+                            'rename duplicate products before importing.'
+                        )
+                        continue
+
+                    product = matches[0]
+                    resolved_sales.append((imported_sale, product))
+                    quantities_by_product[product.pk] = (
+                        quantities_by_product.get(product.pk, Decimal('0')) + imported_sale.quantity
+                    )
+
+                for product in products:
+                    requested_quantity = quantities_by_product.get(product.pk, Decimal('0'))
+                    if requested_quantity > product.quantity:
+                        import_errors.append(
+                            f'Not enough stock for {product.name}: the sheet needs '
+                            f'{requested_quantity} kg, but only {product.quantity} kg is available.'
+                        )
+
+                if import_errors:
+                    raise SalesImportError(import_errors)
+
+                for imported_sale, product in resolved_sales:
+                    Sale.objects.create(
+                        product=product,
+                        quantity=imported_sale.quantity,
+                        payment_method=imported_sale.payment_method,
+                        sale_datetime=imported_sale.sale_datetime,
+                        date_sold=imported_sale.sale_datetime,
+                        added_by=request.user,
+                    )
+                for product in products:
+                    requested_quantity = quantities_by_product.get(product.pk, Decimal('0'))
+                    if requested_quantity:
+                        product.quantity -= requested_quantity
+                        product.save(update_fields=['quantity'])
+                imported_count = len(resolved_sales)
+        except SalesImportError as exc:
+            import_errors = exc.errors
+    else:
+        import_errors = [
+            f'Sales CSV: {error}'
+            for field, errors in form.errors.items()
+            for error in errors
+        ]
+
+    if import_errors:
+        return render(request, 'Grocery/sale_form.html', {
+            'form': SaleForm(),
+            'import_form': form,
+            'import_errors': import_errors,
+        })
+
+    messages.success(
+        request,
+        f'{imported_count} sale{"s" if imported_count != 1 else ""} imported successfully. '
+        'Inventory and sale totals have been updated.',
+    )
+    return redirect('Grocery:sales_list')
+
+
+@login_required
+@shop_attendant_required
+def sales_import_template(request):
+    output = io.StringIO(newline='')
+    writer = csv.writer(output)
+    writer.writerow(['Product', 'Quantity (kg)', 'Payment Method', 'Sale Date', 'Sale Time'])
+    response = HttpResponse('\ufeff' + output.getvalue(), content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="sales_import_template.csv"'
+    return response
+
+
+@login_required
+@shop_attendant_required
+def sales_import_template_pdf(request):
+    output = io.BytesIO()
+    document = SimpleDocTemplate(
+        output,
+        pagesize=landscape(A4),
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=32,
+        bottomMargin=32,
+        title='Sales Entry Template',
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'SalesTemplateTitle',
+        parent=styles['Title'],
+        textColor=colors.HexColor('#1a4d2e'),
+        alignment=0,
+        spaceAfter=6,
+    )
+    note_style = ParagraphStyle(
+        'SalesTemplateNote',
+        parent=styles['BodyText'],
+        textColor=colors.HexColor('#475569'),
+        leading=16,
+    )
+    table_data = [[
+        'Product',
+        'Quantity (kg)',
+        'Payment Method',
+        'Sale Date',
+        'Sale Time',
+    ]]
+    table_data.extend([['', '', '', '', ''] for _ in range(14)])
+    available_width = landscape(A4)[0] - 72
+    column_widths = [
+        available_width * 0.28,
+        available_width * 0.16,
+        available_width * 0.22,
+        available_width * 0.18,
+        available_width * 0.16,
+    ]
+    sales_table = Table(table_data, colWidths=column_widths, rowHeights=[30] + [29] * 14)
+    sales_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a4d2e')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5d1')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f4f9f5')]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 9),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 9),
+    ]))
+    document.build([
+        Paragraph('Sales Entry Template', title_style),
+        Paragraph(
+            'Printable worksheet: write one sale per row. Use product names exactly as they appear in inventory. '
+            'Payment must be Cash or M-Pesa. Enter both sale date and time, or leave both blank for a sale recorded now. '
+            'To import sales automatically, use the CSV template in Excel or another spreadsheet app; PDF files cannot be uploaded.',
+            note_style,
+        ),
+        Spacer(1, 16),
+        sales_table,
+    ])
+    response = HttpResponse(output.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="sales_import_template.pdf"'
+    return response
 
 
 @login_required

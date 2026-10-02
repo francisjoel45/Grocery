@@ -196,6 +196,24 @@ class SaleForm(forms.ModelForm):
         return cleaned_data
 
 
+class SalesImportForm(forms.Form):
+    file = forms.FileField(
+        label='Sales CSV file',
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.csv,text/csv',
+        }),
+    )
+
+    def clean_file(self):
+        uploaded_file = self.cleaned_data['file']
+        if not uploaded_file.name.lower().endswith('.csv'):
+            raise forms.ValidationError('Upload an Excel-compatible .csv file.')
+        if uploaded_file.size > 5 * 1024 * 1024:
+            raise forms.ValidationError('The CSV file must be 5 MB or smaller.')
+        return uploaded_file
+
+
 class FinanceFormMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

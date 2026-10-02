@@ -26,6 +26,62 @@
             </div>
         </div>
     </div>
+    {% if title != 'Edit Sale' %}
+    <div class="col-lg-7 mt-4">
+        <div class="card border-success-subtle">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-file-earmark-spreadsheet text-success fs-5"></i>
+                <span>Bulk record from Excel / CSV</span>
+                <span class="badge text-bg-success ms-auto">Save time</span>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-secondary mb-3">
+                Create or edit the CSV in Excel, then import a whole day's sales in one go. Each row becomes a sale and stock is adjusted automatically.
+                </p>
+                <div class="rounded-3 p-3 mb-3" style="background:#f4f9f5">
+                    <div class="fw-semibold mb-2"><i class="bi bi-magic text-success me-1"></i> Quick setup</div>
+                    <ol class="small text-secondary mb-0 ps-3">
+                        <li>Download the CSV template and open it in Excel.</li>
+                        <li>Match product names to your inventory; quantities can use decimals.</li>
+                        <li>Save it as CSV and upload. All rows save together, or none do if there is a problem.</li>
+                    </ol>
+                </div>
+                <a href="{% url 'Grocery:sales_import_template' %}" class="btn btn-outline-success btn-sm mb-3">
+                    <i class="bi bi-download me-1"></i> Download CSV template for Excel
+                </a>
+                <a href="{% url 'Grocery:sales_import_template_pdf' %}" class="btn btn-outline-secondary btn-sm mb-3 ms-1">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> Printable PDF template
+                </a>
+
+                {% if import_errors %}
+                <div class="alert alert-danger" role="alert">
+                    <div class="fw-semibold mb-1">Nothing was imported. Please fix these issues and try again:</div>
+                    <ul class="mb-0">
+                        {% for error in import_errors %}<li>{{ error }}</li>{% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <form method="post" action="{% url 'Grocery:import_sales' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <label for="{{ import_form.file.id_for_label }}" class="form-label">{{ import_form.file.label }}</label>
+                    {{ import_form.file }}
+                    {% for error in import_form.file.errors %}
+                    <div class="invalid-feedback d-block">{{ error }}</div>
+                    {% endfor %}
+                    <div class="form-text mb-3">
+                        .csv only, up to 5 MB and 500 sale rows. Required columns: Product and Quantity (kg).
+                        Payment Method defaults to Cash; date and time are optional (both must be provided together).
+                        Use the printable PDF for handwriting; it cannot be uploaded for automatic import.
+                    </div>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-cloud-arrow-up me-1"></i> Import and record sales
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <script>

@@ -7,6 +7,7 @@ A Django-based grocery inventory and sales management system for tracking produc
 - Product and category management
 - Stock tracking in kilograms, including decimal quantities
 - Sales recording with Cash and M-Pesa payment methods
+- Bulk sale recording from Excel-compatible `.csv` files using a downloadable template
 - Automatic sales totals and profit calculations
 - Transactions page with payment-method summaries
 - Weekly and monthly business reports
