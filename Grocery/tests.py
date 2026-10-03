@@ -105,6 +105,23 @@ class FinanceTests(TestCase):
         self.assertEqual(response.context['net_profit'], 150)
         self.assertEqual(response.context['available_cash'], 525)
 
+    def test_sale_keeps_original_price_and_profit_after_product_price_changes(self):
+        sale = Sale.objects.create(
+            product=self.product,
+            quantity='10.00',
+            payment_method='Cash',
+            added_by=self.user,
+        )
+
+        self.product.selling_price = Decimal('150.00')
+        self.product.buying_price = Decimal('90.00')
+        self.product.save(update_fields=['selling_price', 'buying_price'])
+
+        sale.refresh_from_db()
+        self.assertEqual(sale.unit_price, Decimal('100.00'))
+        self.assertEqual(sale.total_amount, Decimal('1000.00'))
+        self.assertEqual(sale.profit, Decimal('200.00'))
+
     def test_expense_form_records_entry(self):
         response = self.client.post(reverse('Grocery:add_expense'), {
             'category': 'rent',

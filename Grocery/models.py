@@ -51,15 +51,43 @@ class Sale(models.Model):
     
     def __str__(self):
         return f"{self.product.name} - {self.quantity} kg"
-    
+
+    def _recalculate_sale_amounts(self):
+        if not self.product_id:
+            return
+        quantity = Decimal(str(self.quantity))
+        unit_price = Decimal(str(self.product.selling_price))
+        self.unit_price = unit_price
+        self.total_amount = unit_price * quantity
+        self.profit = (unit_price - Decimal(str(self.product.buying_price))) * quantity
+
     def save(self, *args, **kwargs):
         if self.sale_datetime is None:
             self.sale_datetime = timezone.now()
         self.date_sold = self.sale_datetime
-        self.unit_price = Decimal(str(self.product.selling_price))
-        quantity = Decimal(str(self.quantity))
-        self.total_amount = self.unit_price * quantity
-        self.profit = (self.unit_price - Decimal(str(self.product.buying_price))) * quantity
+
+        should_recalculate = self.pk is None
+        if not should_recalculate and self.product_id:
+            prior_record = Sale.objects.filter(pk=self.pk).values_list(
+                'product_id', 'quantity', 'unit_price', 'total_amount', 'profit'
+            ).first()
+            if prior_record is None:
+                should_recalculate = True
+            else:
+                previous_product_id, previous_quantity, previous_unit_price, previous_total, previous_profit = prior_record
+                current_quantity = Decimal(str(self.quantity))
+                if (
+                    previous_product_id != self.product_id
+                    or Decimal(str(previous_quantity)) != current_quantity
+                    or previous_unit_price in (None, '')
+                    or previous_total in (None, '')
+                    or previous_profit in (None, '')
+                ):
+                    should_recalculate = True
+
+        if should_recalculate and self.product_id:
+            self._recalculate_sale_amounts()
+
         super().save(*args, **kwargs)
 
 
