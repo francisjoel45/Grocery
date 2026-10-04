@@ -1,4 +1,5 @@
 import csv
+from datetime import date, datetime, timedelta
 from io import StringIO
 from unittest.mock import patch
 from django.contrib.auth.models import Group, Permission, User
@@ -6,6 +7,7 @@ from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
+from django.utils import timezone
 from decimal import Decimal
 
 from .models import Category, Product, Sale, Expense, StockPurchase, Withdrawal
@@ -122,6 +124,25 @@ class FinanceTests(TestCase):
         self.assertEqual(sale.total_amount, Decimal('1000.00'))
         self.assertEqual(sale.profit, Decimal('200.00'))
 
+    def test_transactions_page_count_increases_with_recorded_sales(self):
+        Sale.objects.create(
+            product=self.product,
+            quantity='1.00',
+            payment_method='Cash',
+            added_by=self.user,
+        )
+        Sale.objects.create(
+            product=self.product,
+            quantity='2.00',
+            payment_method='M-Pesa',
+            added_by=self.user,
+        )
+
+        response = self.client.get(reverse('Grocery:transactions'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['transactions_count'], 2)
+
     def test_expense_form_records_entry(self):
         response = self.client.post(reverse('Grocery:add_expense'), {
             'category': 'rent',
@@ -133,6 +154,116 @@ class FinanceTests(TestCase):
 
         self.assertRedirects(response, reverse('Grocery:finance_dashboard'))
         self.assertTrue(Expense.objects.filter(description='Shop rent').exists())
+
+
+class SalesListOrderingTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='sales-list-manager',
+            password='test-password',
+            is_staff=True,
+        )
+        self.product = Product.objects.create(
+            name='Rice',
+            buying_price=Decimal('80.00'),
+            selling_price=Decimal('100.00'),
+            quantity=Decimal('50.00'),
+        )
+        self.client.force_login(self.user)
+
+    def test_sales_list_shows_newest_sale_first_and_breaks_timestamp_ties(self):
+        now = timezone.now()
+        oldest = Sale.objects.create(
+            product=self.product,
+            quantity='1.00',
+            payment_method='Cash',
+            sale_datetime=now - timedelta(days=1),
+        )
+        earlier_tied_sale = Sale.objects.create(
+            product=self.product,
+            quantity='1.00',
+            payment_method='Cash',
+            sale_datetime=now,
+        )
+        later_tied_sale = Sale.objects.create(
+            product=self.product,
+            quantity='1.00',
+            payment_method='Cash',
+            sale_datetime=now,
+        )
+
+        response = self.client.get(reverse('Grocery:sales_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [sale.pk for sale in response.context['sales']],
+            [later_tied_sale.pk, earlier_tied_sale.pk, oldest.pk],
+        )
+
+    def test_weekly_summary_includes_only_sales_from_this_week_through_today(self):
+        today = date(2026, 10, 4)
+        for sale_date in (
+            datetime(2026, 9, 27, 12),
+            datetime(2026, 9, 28, 12),
+            datetime(2026, 10, 4, 12),
+            datetime(2026, 10, 5, 12),
+        ):
+            Sale.objects.create(
+                product=self.product,
+                quantity='1.00',
+                payment_method='Cash',
+                sale_datetime=timezone.make_aware(sale_date),
+            )
+
+        with patch('Grocery.views.timezone.localdate', return_value=today):
+            response = self.client.get(reverse('Grocery:sales_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['weekly_sales']['transactions'], 2)
+        self.assertEqual(response.context['weekly_sales']['total'], Decimal('200.00'))
+        self.assertContains(response, '2 transactions')
+
+    def test_weekly_summary_is_zero_when_no_sales_were_recorded_this_week(self):
+        today = date(2026, 10, 4)
+        Sale.objects.create(
+            product=self.product,
+            quantity='1.00',
+            payment_method='Cash',
+            sale_datetime=timezone.make_aware(datetime(2026, 9, 27, 12)),
+        )
+
+        with patch('Grocery.views.timezone.localdate', return_value=today):
+            response = self.client.get(reverse('Grocery:sales_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context['weekly_sales']['total'])
+        self.assertEqual(response.context['weekly_sales']['transactions'], 0)
+        self.assertContains(response, 'KSh 0.00')
+
+    def test_attendant_dashboard_lists_latest_sales_first(self):
+        attendant_group, _ = Group.objects.get_or_create(name='Shop Attendant')
+        self.user.groups.add(attendant_group)
+        now = timezone.now()
+        oldest = Sale.objects.create(
+            product=self.product,
+            quantity='1.00',
+            payment_method='Cash',
+            sale_datetime=now - timedelta(days=1),
+        )
+        latest = Sale.objects.create(
+            product=self.product,
+            quantity='1.00',
+            payment_method='Cash',
+            sale_datetime=now,
+        )
+
+        response = self.client.get(reverse('Grocery:dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [sale.pk for sale in response.context['recent_sales']],
+            [latest.pk, oldest.pk],
+        )
 
 
 class SalesExcelImportTests(TestCase):

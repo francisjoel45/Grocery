@@ -28,7 +28,7 @@
             <div>
                 <div class="stat-label">Today's Sales</div>
                 <p class="stat-value">KSh {{ daily_sales.total|floatformat:2|default:"0.00" }}</p>
-                <div class="stat-hint">{{ daily_sales.count|default:0 }} kg sold</div>
+                <div class="stat-hint">{{ daily_sales.quantity|default:0 }} kg sold · {{ daily_sales.transactions|default:0 }} transactions</div>
             </div>
             <div class="stat-icon amber"><i class="bi bi-sun"></i></div>
         </div>
@@ -36,9 +36,9 @@
     <div class="col-md-4">
         <div class="stat-card d-flex justify-content-between align-items-start">
             <div>
-                <div class="stat-label">Weekly Sales</div>
+                <div class="stat-label">This Week's Sales</div>
                 <p class="stat-value">KSh {{ weekly_sales.total|floatformat:2|default:"0.00" }}</p>
-                <div class="stat-hint">Profit KSh {{ weekly_sales.profit|floatformat:2|default:"0.00" }}</div>
+                <div class="stat-hint">{{ weekly_sales.transactions|default:0 }} transactions · Profit KSh {{ weekly_sales.profit|floatformat:2|default:"0.00" }}</div>
             </div>
             <div class="stat-icon blue"><i class="bi bi-calendar-week"></i></div>
         </div>

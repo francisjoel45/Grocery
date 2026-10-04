@@ -158,8 +158,8 @@ def bootstrap_admin(request, token):
 @login_required
 def dashboard(request):
     if is_shop_attendant(request.user):
-        today = timezone.now().date()
-        recent_sales = Sale.objects.select_related('product').order_by('-sale_datetime')[:5]
+        today = timezone.localdate()
+        recent_sales = Sale.objects.select_related('product').order_by('-sale_datetime', '-pk')[:5]
         today_sales = Sale.objects.filter(sale_datetime__date=today).aggregate(total=Sum('total_amount'))['total'] or 0
         context = {
             'is_shop_attendant': True,
@@ -386,19 +386,23 @@ def _standard_dashboard(request):
     total_stock_items = sum(p.quantity for p in products)
     low_stock = products.filter(quantity__lte=F('min_stock_level'))
     
-    today = timezone.now().date()
+    today = timezone.localdate()
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
     
     today_sales = Sale.objects.filter(sale_datetime__date=today).aggregate(
-        total=Sum('total_amount'), count=Sum('quantity')) 
-    week_sales = Sale.objects.filter(sale_datetime__date__gte=week_start).aggregate(
-        total=Sum('total_amount'))
+        total=Sum('total_amount'), count=Sum('quantity'))
+    week_sales = Sale.objects.filter(
+        sale_datetime__date__gte=week_start,
+        sale_datetime__date__lte=today,
+    ).aggregate(
+        total=Sum('total_amount'),
+        profit=Sum('profit'),
+        transactions=Count('pk'),
+    )
     month_sales = Sale.objects.filter(sale_datetime__date__gte=month_start).aggregate(
         total=Sum('total_amount'))
     
-    week_profit = Sale.objects.filter(sale_datetime__date__gte=week_start).aggregate(
-        profit=Sum('profit'))
     month_profit = Sale.objects.filter(sale_datetime__date__gte=month_start).aggregate(
         profit=Sum('profit'))
     
@@ -436,8 +440,9 @@ def _standard_dashboard(request):
         'low_stock_count': low_stock.count(),
         'today_sales': today_sales.get('total') or 0,
         'weekly_sales': week_sales.get('total') or 0,
+        'weekly_transactions': week_sales.get('transactions') or 0,
         'monthly_sales': month_sales.get('total') or 0,
-        'weekly_profit': week_profit.get('profit') or 0,
+        'weekly_profit': week_sales.get('profit') or 0,
         'monthly_profit': month_profit.get('profit') or 0,
         'low_stock_alerts': low_stock_alerts,
         'sales_trend_labels': sales_trend_labels,
@@ -557,7 +562,7 @@ def update_stock(request, pk):
 @login_required
 @shop_attendant_required
 def sales_list(request):
-    sales = Sale.objects.all().order_by('-sale_datetime')
+    sales = Sale.objects.all().order_by('-sale_datetime', '-pk')
     search_query = request.GET.get('search')
     from_date = request.GET.get('from_date')
     to_date = request.GET.get('to_date')
@@ -569,14 +574,18 @@ def sales_list(request):
     if to_date:
         sales = sales.filter(sale_datetime__date__lte=to_date)
     
-    today = timezone.now().date()
+    today = timezone.localdate()
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
     
     daily_sales = Sale.objects.filter(sale_datetime__date=today).aggregate(
-        total=Sum('total_amount'), count=Sum('quantity'), profit=Sum('profit'))
-    weekly_sales = Sale.objects.filter(sale_datetime__date__gte=week_start).aggregate(
-        total=Sum('total_amount'), count=Sum('quantity'), profit=Sum('profit'))
+        total=Sum('total_amount'), quantity=Sum('quantity'),
+        transactions=Count('pk'), profit=Sum('profit'))
+    weekly_sales = Sale.objects.filter(
+        sale_datetime__date__gte=week_start,
+        sale_datetime__date__lte=today,
+    ).aggregate(
+        total=Sum('total_amount'), transactions=Count('pk'), profit=Sum('profit'))
     monthly_sales = Sale.objects.filter(sale_datetime__date__gte=month_start).aggregate(
         total=Sum('total_amount'), count=Sum('quantity'), profit=Sum('profit'))
     
@@ -617,6 +626,7 @@ def transactions(request):
         'transactions_total': Sale.objects.aggregate(
             total=Sum('total_amount')
         )['total'] or 0,
+        'transactions_count': Sale.objects.count(),
         'transactions': transactions_page,
         'page_size': page_size,
         'page_size_options': PAGE_SIZE_OPTIONS,

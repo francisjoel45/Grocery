@@ -55,7 +55,7 @@
                     {% endfor %}
                 </div>
                 {% else %}
-                <p class="text-muted mb-0">No sales recorded yet today.</p>
+                <p class="text-muted mb-0">No sales recorded yet.</p>
                 {% endif %}
             </div>
         </div>
@@ -156,11 +156,11 @@
         <div class="card">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="text-muted mb-1">Weekly Sales</h6>
+                    <h6 class="text-muted mb-1">This Week's Sales</h6>
                     <div class="stat-icon purple" style="width:42px;height:42px;font-size:1.2rem;"><i class="bi bi-graph-up-arrow"></i></div>
                 </div>
                 <h3 class="mb-1">KSh {{ weekly_sales|floatformat:2 }}</h3>
-                <p class="text-muted mb-0"><i class="bi bi-arrow-up-right text-success"></i> Profit: KSh {{ weekly_profit|floatformat:2 }}</p>
+                <p class="text-muted mb-0"><i class="bi bi-arrow-up-right text-success"></i> Profit: KSh {{ weekly_profit|floatformat:2 }} · {{ weekly_transactions }} transactions</p>
             </div>
         </div>
     </div>
