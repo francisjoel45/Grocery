@@ -1,4 +1,6 @@
 # Grocery/forms.py
+from datetime import datetime, time
+
 from django import forms
 from django.contrib.auth.forms import PasswordChangeForm, UserCreationForm
 from django.contrib.auth.models import Group, User
@@ -116,14 +118,8 @@ class CategoryForm(forms.ModelForm):
 
 
 class SaleForm(forms.ModelForm):
-    sale_type = forms.ChoiceField(
-        choices=[('current', 'Current Sale'), ('previous', 'Previous Sale')],
-        initial='current',
-        widget=forms.RadioSelect,
-        label='Sale timing',
-    )
     sale_date = forms.DateField(
-        required=False,
+        required=True,
         widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         label='Sale date',
     )
@@ -153,7 +149,6 @@ class SaleForm(forms.ModelForm):
             'product',
             'quantity',
             'payment_method',
-            'sale_type',
             Row(
                 Column('sale_date', css_class='col-md-6'),
                 Column('sale_time', css_class='col-md-6'),
@@ -165,6 +160,12 @@ class SaleForm(forms.ModelForm):
                 css_class='btn btn-success mt-3',
             )
         )
+        if self.instance and self.instance.pk and self.instance.sale_datetime:
+            local_sale_datetime = timezone.localtime(self.instance.sale_datetime)
+            self.initial.setdefault('sale_date', local_sale_datetime.date())
+            self.initial.setdefault('sale_time', local_sale_datetime.time().replace(second=0, microsecond=0))
+        else:
+            self.initial.setdefault('sale_date', timezone.localdate())
     
     def clean(self):
         cleaned_data = super().clean()
@@ -179,19 +180,13 @@ class SaleForm(forms.ModelForm):
                     f"Insufficient stock available. Only {available_quantity} kg in stock."
                 )
 
-        sale_type = cleaned_data.get('sale_type')
         sale_date = cleaned_data.get('sale_date')
         sale_time = cleaned_data.get('sale_time')
-
-        if sale_type == 'previous':
-            if not sale_date or not sale_time:
-                raise forms.ValidationError('Select the exact sale date and time for a previous sale.')
+        if sale_date:
             cleaned_data['sale_datetime'] = timezone.make_aware(
-                datetime.combine(sale_date, sale_time),
+                datetime.combine(sale_date, sale_time or time.min),
                 timezone.get_current_timezone(),
             )
-        else:
-            cleaned_data['sale_datetime'] = timezone.now()
 
         return cleaned_data
 

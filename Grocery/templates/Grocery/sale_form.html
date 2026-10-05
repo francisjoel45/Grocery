@@ -1,3 +1,5 @@
+
+
 <!-- templates/Grocery/sale_form.html -->
 {% extends 'Grocery/base.html' %}
 {% load crispy_forms_tags %}
@@ -70,8 +72,8 @@
                     <div class="invalid-feedback d-block">{{ error }}</div>
                     {% endfor %}
                     <div class="form-text mb-3">
-                        .csv only, up to 5 MB and 500 sale rows. Required columns: Product and Quantity (kg).
-                        Payment Method defaults to Cash; date and time are optional (both must be provided together).
+                        .csv only, up to 5 MB and 500 sale rows. Required columns: Product, Quantity (kg), and Sale Date.
+                        Payment Method defaults to Cash. Sale Time is optional and defaults to 00:00.
                         Use the printable PDF for handwriting; it cannot be uploaded for automatic import.
                     </div>
                     <button type="submit" class="btn btn-success">
@@ -84,30 +86,4 @@
     {% endif %}
 </div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const typeInputs = document.querySelectorAll('input[name="sale_type"]');
-        const dateWrap = document.getElementById('div_id_sale_date');
-        const timeWrap = document.getElementById('div_id_sale_time');
-        const dateField = document.getElementById('id_sale_date');
-        const timeField = document.getElementById('id_sale_time');
-
-        function updateSaleTimingFields() {
-            const selected = document.querySelector('input[name="sale_type"]:checked');
-            const showPrevious = selected && selected.value === 'previous';
-
-            if (dateWrap) dateWrap.style.display = showPrevious ? '' : 'none';
-            if (timeWrap) timeWrap.style.display = showPrevious ? '' : 'none';
-
-            if (dateField) dateField.required = showPrevious;
-            if (timeField) timeField.required = showPrevious;
-        }
-
-        typeInputs.forEach(function (input) {
-            input.addEventListener('change', updateSaleTimingFields);
-        });
-
-        updateSaleTimingFields();
-    });
-</script>
 {% endblock %}

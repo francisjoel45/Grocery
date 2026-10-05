@@ -293,10 +293,39 @@ class SalesExcelImportTests(TestCase):
             content_type='text/csv',
         )
 
+    def test_form_records_sale_with_required_date_and_optional_time(self):
+        response = self.client.post(reverse('Grocery:add_sale'), {
+            'product': self.product.pk,
+            'quantity': '2.00',
+            'payment_method': 'Cash',
+            'sale_date': '2026-09-15',
+            'sale_time': '',
+        })
+
+        self.assertRedirects(response, reverse('Grocery:sales_list'))
+        sale = Sale.objects.get()
+        self.assertEqual(timezone.localtime(sale.sale_datetime).date().isoformat(), '2026-09-15')
+        self.assertEqual(timezone.localtime(sale.sale_datetime).strftime('%H:%M'), '00:00')
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.quantity, Decimal('48.00'))
+
+    def test_form_requires_sale_date(self):
+        response = self.client.post(reverse('Grocery:add_sale'), {
+            'product': self.product.pk,
+            'quantity': '2.00',
+            'payment_method': 'Cash',
+            'sale_time': '',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Sale.objects.count(), 0)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.quantity, Decimal('50.00'))
+
     def test_import_records_each_sale_and_deducts_combined_stock(self):
         csv_file = self.make_csv_upload([
             ['rice', 2.5, 'Cash', '2026-09-15', '10:30'],
-            ['Rice', 5, 'M-Pesa', None, None],
+            ['Rice', 5, 'M-Pesa', '2026-09-16', None],
         ])
 
         response = self.client.post(
@@ -315,11 +344,15 @@ class SalesExcelImportTests(TestCase):
         )
         self.assertEqual(Sale.objects.get(payment_method='Cash').added_by, self.user)
         self.assertEqual(Sale.objects.get(payment_method='M-Pesa').total_amount, Decimal('500.00'))
+        self.assertEqual(
+            timezone.localtime(Sale.objects.get(payment_method='M-Pesa').sale_datetime).strftime('%H:%M'),
+            '00:00',
+        )
 
     def test_import_is_all_or_nothing_when_combined_quantity_exceeds_stock(self):
         csv_file = self.make_csv_upload([
-            ['Rice', 30, 'Cash', None, None],
-            ['Rice', 25, 'Cash', None, None],
+            ['Rice', 30, 'Cash', '2026-09-15', None],
+            ['Rice', 25, 'Cash', '2026-09-15', None],
         ])
 
         response = self.client.post(reverse('Grocery:import_sales'), {'file': csv_file})
@@ -333,8 +366,8 @@ class SalesExcelImportTests(TestCase):
 
     def test_unknown_product_prevents_all_rows_from_being_imported(self):
         csv_file = self.make_csv_upload([
-            ['Rice', 2, 'Cash', None, None],
-            ['Unlisted item', 1, 'Cash', None, None],
+            ['Rice', 2, 'Cash', '2026-09-15', None],
+            ['Unlisted item', 1, 'Cash', '2026-09-15', None],
         ])
 
         response = self.client.post(reverse('Grocery:import_sales'), {'file': csv_file})
@@ -342,6 +375,20 @@ class SalesExcelImportTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'product &quot;Unlisted item&quot; was not found')
         self.assertEqual(Sale.objects.count(), 0)
+
+    def test_missing_date_in_any_csv_row_prevents_all_rows_from_importing(self):
+        csv_file = self.make_csv_upload([
+            ['Rice', 2, 'Cash', '2026-09-15', '10:30'],
+            ['Rice', 1, 'Cash', None, None],
+        ])
+
+        response = self.client.post(reverse('Grocery:import_sales'), {'file': csv_file})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Row 3: enter a Sale Date.')
+        self.assertEqual(Sale.objects.count(), 0)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.quantity, Decimal('50.00'))
 
     def test_invalid_csv_is_rejected_without_recording_sales(self):
         csv_file = SimpleUploadedFile(

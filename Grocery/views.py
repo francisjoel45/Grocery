@@ -649,7 +649,10 @@ def add_sale(request):
             product = sale.product
             if sale.quantity > product.quantity:
                 messages.error(request, f"Insufficient stock available. Only {product.quantity} kg in stock.")
-                return render(request, 'Grocery/sale_form.html', {'form': form})
+                return render(request, 'Grocery/sale_form.html', {
+                    'form': form,
+                    'import_form': import_form,
+                })
             sale.save()
             product.quantity -= sale.quantity
             product.save()
@@ -827,7 +830,7 @@ def sales_import_template_pdf(request):
         Paragraph('Sales Entry Template', title_style),
         Paragraph(
             'Printable worksheet: write one sale per row. Use product names exactly as they appear in inventory. '
-            'Payment must be Cash or M-Pesa. Enter both sale date and time, or leave both blank for a sale recorded now. '
+            'Payment must be Cash or M-Pesa. Sale date is required; sale time is optional and defaults to 00:00. '
             'To import sales automatically, use the CSV template in Excel or another spreadsheet app; PDF files cannot be uploaded.',
             note_style,
         ),

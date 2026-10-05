@@ -86,6 +86,10 @@ def parse_sales_csv(uploaded_file):
          if key in column_indexes),
         None,
     )
+    if date_column is None:
+        raise SalesImportError([
+            'The header row must include a Sale Date column.'
+        ])
 
     sales = []
     errors = []
@@ -133,26 +137,22 @@ def parse_sales_csv(uploaded_file):
 
             sale_date_value = cell(date_column).strip()
             sale_time_value = cell(time_column).strip()
-            if bool(sale_date_value) != bool(sale_time_value):
-                errors.append(f'Row {row_number}: provide both Sale Date and Sale Time, or leave both blank.')
-                continue
             if not sale_date_value:
-                sale_datetime = timezone.now()
-            else:
-                try:
-                    local_datetime = datetime.combine(
-                        _parse_sale_date(sale_date_value),
-                        _parse_sale_time(sale_time_value),
-                    )
-                except (TypeError, ValueError, OverflowError):
-                    errors.append(
-                        f'Row {row_number}: use a valid date (YYYY-MM-DD) and time (HH:MM).'
-                    )
-                    continue
-                sale_datetime = timezone.make_aware(
-                    local_datetime,
-                    timezone.get_current_timezone(),
+                errors.append(f'Row {row_number}: enter a Sale Date.')
+                continue
+            try:
+                parsed_date = _parse_sale_date(sale_date_value)
+                parsed_time = _parse_sale_time(sale_time_value) if sale_time_value else time.min
+                local_datetime = datetime.combine(parsed_date, parsed_time)
+            except (TypeError, ValueError, OverflowError):
+                errors.append(
+                    f'Row {row_number}: use a valid Sale Date (YYYY-MM-DD) and, if provided, Sale Time (HH:MM).'
                 )
+                continue
+            sale_datetime = timezone.make_aware(
+                local_datetime,
+                timezone.get_current_timezone(),
+            )
 
             sales.append(ImportedSale(
                 row_number=row_number,
